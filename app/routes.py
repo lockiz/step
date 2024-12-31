@@ -66,52 +66,6 @@ def get_orders():
     return jsonify(orders_list)
 
 
-def update_order(order_id):
-    """
-    Меняем статус заказа. Если статус -> 'Собран' (или 'Выполнен'), списываем детали (Part).
-    """
-    order = Order.query.get(order_id)
-    if not order:
-        return jsonify({'error': 'Order not found'}), 404
-
-    data = request.get_json()
-    old_status = order.order_status
-    new_status = data.get('orderStatus', order.order_status)
-
-    # Запишем новый статус
-    order.order_status = new_status
-
-    # Пример: Если переходим со старого статуса на "Собран":
-    statuses_for_spisanie = ["Собран", "Выполнен", "В доставке", "Клиент получил"]
-
-    if new_status in statuses_for_spisanie and old_status not in statuses_for_spisanie:
-        # Проходим по JSON-списку товаров, которые уже хранятся в order.products
-        for item in order.products or []:
-            product_id = item["id"]  # как вы храните id товара
-            quantity_in_order = item["quantity"]
-
-            # Ищем все BOM-связи (ProductPart), т.е. какие детали нужны
-            pp_list = ProductPart.query.filter_by(product_id=product_id).all()
-            for pp in pp_list:
-                total_needed = pp.quantity_needed * quantity_in_order
-                part_obj = pp.part  # получаем объект Part
-
-                # Проверяем, хватает ли деталей
-                if part_obj.quantity < total_needed:
-                    return jsonify({
-                        'error': f'Not enough {part_obj.name}. '
-                                 f'Need {total_needed}, have {part_obj.quantity}'
-                    }), 400
-
-                # Списываем детали
-                part_obj.quantity -= total_needed
-
-        db.session.commit()
-
-    db.session.commit()
-    return jsonify({'message': 'Order updated successfully'}), 200
-
-
 # -------------------------------
 # Функции для товаров
 # -------------------------------
@@ -248,52 +202,68 @@ def archive_product(product_id):
     return jsonify({'message': 'Product archived successfully'}), 200
 
 
+def update_order(order_id):
+    """
+    Обновляет статус заказа. Если статус -> 'Собран' или 'Выполнен', списываются детали.
+    """
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    data = request.get_json()
+    new_status = data.get('orderStatus')
+    old_status = order.order_status
+
+    # Обновляем статус
+    order.order_status = new_status
+
+    # Если статус переходит в "Собран" или "Выполнен", списываем детали
+    if new_status in ['Собран', 'Выполнен'] and old_status not in ['Собран', 'Выполнен']:
+        for item in order.products or []:
+            product_id = item.get('id')
+            quantity_in_order = item.get('quantity', 1)
+
+            # Проверяем детали через ProductPart
+            bom_items = ProductPart.query.filter_by(product_id=product_id).all()
+            for bom in bom_items:
+                part = bom.part
+                total_needed = bom.quantity_needed * quantity_in_order
+
+                if part.quantity < total_needed:
+                    return jsonify(
+                        {'error': f'Not enough {part.name}. Required {total_needed}, available {part.quantity}'}), 400
+
+                part.quantity -= total_needed
+
+    db.session.commit()
+    return jsonify({'message': 'Order updated successfully'}), 200
+
+
 def check_shortages():
     """
-    Возвращает словарь вида:
-    {
-      "Втулка": {
-         "needed": 10,
-         "available": 5
-      },
-      "Клипса": {
-         "needed": 2,
-         "available": 2
-      }
-    }
-    Или пустой словарь, если всего хватает.
+    Возвращает список недостающих деталей для всех заказов.
     """
     from collections import defaultdict
-    needed_map = defaultdict(int)
+    shortages = defaultdict(lambda: {'needed': 0, 'available': 0})
 
-    # Считаем заказы, где order_status in ["Новый", "Ожидание"] — то есть те, которые не собраны
-    orders = Order.query.filter(Order.order_status.in_(["Новый", "Ожидание"])).all()
+    orders = Order.query.filter(Order.order_status.in_(['Новый', 'Ожидание'])).all()
 
     for order in orders:
         for item in order.products or []:
-            product_id = item["id"]
-            qty_in_order = item["quantity"]
+            product_id = item.get('id')
+            quantity_in_order = item.get('quantity', 1)
 
-            # Смотрим BOM
-            pp_list = ProductPart.query.filter_by(product_id=product_id).all()
-            for pp in pp_list:
-                total_needed = pp.quantity_needed * qty_in_order
-                part_id = pp.part_id
-                needed_map[part_id] += total_needed
+            bom_items = ProductPart.query.filter_by(product_id=product_id).all()
+            for bom in bom_items:
+                part = bom.part
+                total_needed = bom.quantity_needed * quantity_in_order
+                shortages[part.name]['needed'] += total_needed
+                shortages[part.name]['available'] = part.quantity
 
-    # Сравниваем с фактическими остатками
-    shortages = {}
-    for part_id, needed_qty in needed_map.items():
-        part_obj = Part.query.get(part_id)
-        if part_obj.quantity < needed_qty:
-            shortage_qty = needed_qty - part_obj.quantity
-            shortages[part_obj.name] = {
-                'needed': needed_qty,
-                'available': part_obj.quantity,
-                'shortage': shortage_qty
-            }
-
-    return jsonify(shortages), 200
+    return jsonify([
+        {'part': name, **data, 'shortage': max(0, data['needed'] - data['available'])}
+        for name, data in shortages.items()
+    ]), 200
 
 
 # -------------------------
@@ -312,4 +282,3 @@ def register_routes(app):
     app.add_url_rule('/products/<int:product_id>', view_func=archive_product, methods=['DELETE'])
     app.add_url_rule('/update_order/<int:order_id>', view_func=update_order, methods=['PUT'])
     app.add_url_rule('/check_shortages', view_func=check_shortages, methods=['GET'])
-
