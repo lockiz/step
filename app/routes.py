@@ -135,27 +135,29 @@ def get_products():
 
 # 3) Добавление товара
 def add_product():
-    data = request.get_json()
-    new_product = Product(
-        name=data['name'],
-        price=float(data.get('price', 0.0)),
-        quantity=int(data.get('quantity', 0)),
-        photo=data.get('photo', ''),
-
-        characteristics=data.get('characteristics', ''),
-        color=data.get('color', ''),
-        plastic=data.get('plastic', ''),
-        printing_time=data.get('printing_time', ''),
-        cost_price=float(data.get('cost_price', 0.0)),
-        dimensions=data.get('dimensions', ''),
-        comment=data.get('comment', ''),
-        status=data.get('status', 'Active'),
-
-        sales_count=int(data.get('sales_count', 0)),
-    )
-    db.session.add(new_product)
-    db.session.commit()
-    return jsonify({'message': 'Product added successfully'}), 201
+    try:
+        data = request.get_json()  # Получаем данные из запроса
+        new_product = Product(
+            name=data['name'],
+            price=float(data.get('price', 0.0)),
+            quantity=int(data.get('quantity', 0)),
+            photo=data.get('photo', ''),
+            characteristics=data.get('characteristics', ''),
+            color=data.get('color', ''),
+            plastic=data.get('plastic', ''),
+            printing_time=data.get('printing_time', ''),
+            cost_price=float(data.get('cost_price', 0.0)),
+            dimensions=data.get('dimensions', ''),
+            comment=data.get('comment', ''),
+            status=data.get('status', 'Active'),
+            sales_count=int(data.get('sales_count', 0)),
+        )
+        db.session.add(new_product)
+        db.session.commit()
+        return jsonify({'message': 'Product added successfully'}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500  # Возвращаем ошибк
 
 
 # 4) Обновление товара

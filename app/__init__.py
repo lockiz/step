@@ -10,7 +10,7 @@ def create_app():
     app.config.from_object('app.config.Config')
 
     # Включаем CORS, чтобы фронт (на localhost:3000) мог делать запросы.
-    CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     @app.after_request
     def after_request(response):

@@ -2,7 +2,9 @@ import datetime
 from . import db
 from sqlalchemy.dialects.postgresql import JSON
 
+
 class Order(db.Model):
+    __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)
 
     order_responsible = db.Column(db.String(50), nullable=True)
@@ -20,18 +22,20 @@ class Order(db.Model):
     discount = db.Column(db.String(50), nullable=True)
     total_amount = db.Column(db.String(50), nullable=True)
     products = db.Column(db.JSON, nullable=True)
+    date_completed = db.Column(db.DateTime, nullable=True)
 
     def __repr__(self):
         return f'<Order {self.id}>'
 
+
 # Новая модель "Product" для управления товарами (склад)
 class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date_added = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    __tablename__ = 'products'
 
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     price = db.Column(db.Float, default=0.0)
-    quantity = db.Column(db.Integer, default=0)
+    quantity = db.Column(db.Integer, default=0)  # Можно не использовать, если детали — основной учёт
     photo = db.Column(db.String(200), nullable=True)
 
     # Дополнительные поля
@@ -51,3 +55,39 @@ class Product(db.Model):
 
     def __repr__(self):
         return f'<Product {self.id} {self.name}>'
+
+
+class Part(db.Model):
+    """
+    Базовая деталь, которую вы 3D-печатаете (втулка, клипса и т. д.).
+    """
+    __tablename__ = 'parts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    quantity = db.Column(db.Integer, default=0)  # Сколько деталей на складе
+    cost_price = db.Column(db.Float, default=0.0)  # Если нужно считать себестоимость
+
+    def __repr__(self):
+        return f"<Part {self.id} {self.name}>"
+
+
+class ProductPart(db.Model):
+    """
+    Таблица BOM: показывает, сколько деталей Part нужно для сборки 1 шт. Product.
+    Например, если для концевик ПАПА (product_id=1) нужно 1 втулка (part_id=2),
+    quantity_needed=1.
+    """
+    __tablename__ = 'product_parts'
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
+    quantity_needed = db.Column(db.Integer, default=1)
+
+    # Связи:
+    product = db.relationship("Product", backref="bom_items")
+    part = db.relationship("Part")
+
+    def __repr__(self):
+        return f"<ProductPart product={self.product_id}, part={self.part_id}, needed={self.quantity_needed}>"

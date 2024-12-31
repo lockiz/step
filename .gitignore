@@ -1,0 +1,10 @@
+# Исключаем виртуальное окружение Python
+venv/
+
+# Исключаем node_modules
+front/node_modules
+
+# Исключаем временные файлы редакторов
+*.swp
+*.log
+.DS_Store
