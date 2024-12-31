@@ -57,15 +57,19 @@ class Product(db.Model):
         return f'<Product {self.id} {self.name}>'
 
 
+# ===============================
+# ДЕТАЛИ (PART) И BОМ (PRODUCTPART)
+# ===============================
+
 class Part(db.Model):
     """
-    Базовая деталь, которую вы 3D-печатаете (втулка, клипса и т. д.).
+    Базовая деталь (втулка, клипса, и т.д.), которую вы печатаете.
     """
     __tablename__ = 'parts'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    quantity = db.Column(db.Integer, default=0)  # Сколько деталей на складе
+    quantity = db.Column(db.Integer, default=0)  # Сколько таких деталей на складе
     cost_price = db.Column(db.Float, default=0.0)  # Если нужно считать себестоимость
 
     def __repr__(self):
@@ -74,16 +78,14 @@ class Part(db.Model):
 
 class ProductPart(db.Model):
     """
-    Таблица BOM: показывает, сколько деталей Part нужно для сборки 1 шт. Product.
-    Например, если для концевик ПАПА (product_id=1) нужно 1 втулка (part_id=2),
-    quantity_needed=1.
+    Соответствует BOM: сколько деталей Part нужно для 1 шт. Product.
     """
     __tablename__ = 'product_parts'
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     part_id = db.Column(db.Integer, db.ForeignKey('parts.id'), nullable=False)
-    quantity_needed = db.Column(db.Integer, default=1)
+    quantity_needed = db.Column(db.Integer, default=1)  # Сколько деталей Part нужно на 1 Product
 
     # Связи:
     product = db.relationship("Product", backref="bom_items")
