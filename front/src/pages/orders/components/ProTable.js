@@ -1,15 +1,15 @@
-import React, {useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
 import ProTable from "@ant-design/pro-table";
-import {Tag, Tooltip, Badge, Space} from "antd";
-import {getOrders} from "../OrdersService"; // Импортируем вашу функцию
-import dayjs from "dayjs"; // Импортируем библиотеку для работы с датами
-import "dayjs/locale/ru"; // Добавляем русский язык для дат
-
+import { Tag, Tooltip, Badge, Space, Select, notification } from "antd";
+import { getOrders, updateOrder, checkShortages } from "../OrdersService";
+import dayjs from "dayjs";
+import "dayjs/locale/ru";
 
 dayjs.locale("ru");
 
 const statuses = {
     'Новый заказ': "Новый заказ",
+    'Собран': "Собран",
     'В доставке': "В доставке",
     'Клиент получил': "Клиент получил",
     'Отказ': "Отказ",
@@ -18,18 +18,44 @@ const statuses = {
 
 const OrdersTable = () => {
     const [orders, setOrders] = useState([]);
+    const [shortages, setShortages] = useState([]); // Для данных о недостающих деталях
+
+    // Загрузка заказов и недостающих деталей
+    const fetchOrdersAndShortages = async () => {
+        try {
+            const ordersData = await getOrders();
+            const shortagesData = await checkShortages();
+            setOrders(ordersData);
+            setShortages(shortagesData);
+        } catch (error) {
+            console.error("Ошибка при загрузке данных:", error);
+            notification.error({ message: "Ошибка загрузки данных", description: error.toString() });
+        }
+    };
 
     useEffect(() => {
-        const fetchOrders = async () => {
-            try {
-                const data = await getOrders();
-                setOrders(data);
-            } catch (error) {
-                console.error("Ошибка при загрузке заказов:", error);
-            }
-        };
-        fetchOrders();
+        fetchOrdersAndShortages();
     }, []);
+
+    // Проверка недостающих деталей для заказа
+    const isShortage = (products) => {
+        return products.some(product => {
+            const shortage = shortages.find(s => s.part === product.name);
+            return shortage && shortage.shortage > 0;
+        });
+    };
+
+    // Обновление статуса заказа
+    const handleStatusChange = async (orderId, newStatus) => {
+        try {
+            await updateOrder(orderId, { orderStatus: newStatus });
+            notification.success({ message: "Статус заказа обновлён" });
+            fetchOrdersAndShortages(); // Обновляем заказы и недостающие детали
+        } catch (error) {
+            console.error("Ошибка обновления статуса заказа:", error);
+            notification.error({ message: "Ошибка обновления статуса", description: error.toString() });
+        }
+    };
 
     const columns = [
         {
@@ -41,43 +67,40 @@ const OrdersTable = () => {
                 value: key,
             })),
             onFilter: (value, record) => record.orderStatus.includes(value),
-            render: (status) => {
-                const colorMap = {
-                    'Новый заказ': "blue",
-                    'Собран': "orange",
-                    'В доставке': "purple",
-                    'Клиент получил': "green",
-                    'Отменён': "red",
-                    'Выполнен': "grey",
-                };
-                return <Tag color={colorMap[status]}>{statuses[status]}</Tag>;
-            },
-            default: true, // Показывать по умолчанию
+            render: (status, record) => (
+                <Select
+                    defaultValue={status}
+                    style={{ width: 120 }}
+                    onChange={(newStatus) => handleStatusChange(record.id, newStatus)}
+                >
+                    {Object.entries(statuses).map(([key, label]) => (
+                        <Select.Option key={key} value={key}>
+                            {label}
+                        </Select.Option>
+                    ))}
+                </Select>
+            ),
         },
         {
             title: "Отправить до",
             dataIndex: "orderDate",
             key: "orderDate",
-            render: (dates) => dayjs(dates[1]).format("D MMM"), // Форматируем дату как "24 янв." или "31 дек."
-            default: true, // Показывать по умолчанию
+            render: (dates) => dayjs(dates[1]).format("D MMM"), // Форматируем дату
         },
         {
             title: "Доставка",
             dataIndex: "deliveryType",
             key: "deliveryType",
-            default: true, // Показывать по умолчанию
         },
         {
             title: "Пункт выдачи",
             dataIndex: "pickupPoint",
             key: "pickupPoint",
-            default: true, // Показывать по умолчанию
         },
         {
             title: "Номер отправления",
             dataIndex: "trackingNumber",
             key: "trackingNumber",
-            default: true, // Показывать по умолчанию
         },
         {
             title: "Товары",
@@ -89,7 +112,10 @@ const OrdersTable = () => {
                         <Badge
                             count={product.quantity}
                             offset={[-10, 10]}
-                            style={{backgroundColor: "#108ee9", color: "#fff"}}
+                            style={{
+                                backgroundColor: isShortage(products) ? "red" : "#108ee9",
+                                color: "#fff",
+                            }}
                             key={product.key}
                         >
                             <Tooltip
@@ -116,38 +142,32 @@ const OrdersTable = () => {
                     ))}
                 </Space>
             ),
-            default: true, // Показывать по умолчанию
         },
         {
             title: "Сумма",
             dataIndex: "totalAmount",
             key: "totalAmount",
             render: (value) => `${value} ₽`,
-            default: true, // Показывать по умолчанию
         },
         {
             title: "Ответственный",
             dataIndex: "orderResponsible",
             key: "orderResponsible",
-            default: false, // Скрыть по умолчанию
         },
         {
             title: "Приоритет",
             dataIndex: "priority",
             key: "priority",
-            default: false, // Скрыть по умолчанию
         },
         {
             title: "Источник заказа",
             dataIndex: "orderSource",
             key: "orderSource",
-            default: false, // Скрыть по умолчанию
         },
         {
             title: "Ссылка на заказ",
             dataIndex: "avitoLink",
             key: "avitoLink",
-            default: false, // Скрыть по умолчанию
         },
     ];
 
@@ -159,27 +179,8 @@ const OrdersTable = () => {
             rowKey="id"
             search={false}
             options={{
-                setting: true, // Включаем настройки (шестеренку)
-                search: false,
-                fullScreen: true
-            }}
-            columnsState={{
-                defaultValue: {
-                    orderStatus: {show: true}, // Скрыть колонку по умолчанию
-                    orderDate: {show: true}, // Отображать колонку
-                    deliveryType: {show: true}, // Отображать колонку
-                    pickupPoint: {show: true}, // Скрыть колонку по умолчанию
-                    trackingNumber: {show: true}, // Скрыть колонку по умолчанию
-
-                    products: {show: false}, // Скрыть колонку по умолчанию
-                    totalAmount: {show: false}, // Скрыть колонку по умолчанию
-                    orderResponsible: {show: false}, // Скрыть колонку по умолчанию
-                    priority: {show: false}, // Скрыть колонку по умолчанию
-                    orderSource: {show: false}, // Скрыть колонку по умолчанию
-                    avitoLink: {show: false}, // Скрыть колонку по умолчанию
-                },
-                persistenceKey: "orders-table", // Ключ для сохранения состояния
-                persistenceType: "localStorage", // Сохраняем настройки в localStorage,
+                setting: true,
+                fullScreen: true,
             }}
         />
     );
