@@ -3,7 +3,6 @@ import datetime
 import uuid
 from flask import request, jsonify, current_app
 from werkzeug.utils import secure_filename
-
 from . import db
 from .models import db, Order, ProductPart, Part, Product
 
@@ -76,7 +75,6 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# 1) Загрузка файла (фото) в /app/static/uploads/
 def upload_image():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -90,7 +88,6 @@ def upload_image():
         ext = filename.rsplit('.', 1)[1].lower()
         unique_name = f"{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex}.{ext}"
 
-        # Папка для загрузки
         upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
@@ -106,7 +103,6 @@ def upload_image():
         return jsonify({'error': 'File not allowed'}), 400
 
 
-# 2) Список товаров
 def get_products():
     products = Product.query.order_by(Product.id.desc()).all()
     result = []
@@ -126,17 +122,15 @@ def get_products():
             'dimensions': p.dimensions,
             'comment': p.comment,
             'status': p.status,
-            # Поля аналитики
             'sales_count': p.sales_count,
             'last_sold_date': p.last_sold_date.isoformat() if p.last_sold_date else None
         })
     return jsonify(result), 200
 
 
-# 3) Добавление товара
 def add_product():
     try:
-        data = request.get_json()  # Получаем данные из запроса
+        data = request.get_json()
         new_product = Product(
             name=data['name'],
             price=float(data.get('price', 0.0)),
@@ -157,113 +151,43 @@ def add_product():
         return jsonify({'message': 'Product added successfully'}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500  # Возвращаем ошибк
+        return jsonify({'error': str(e)}), 500
 
 
-# 4) Обновление товара
-def update_product(product_id):
-    product = Product.query.get(product_id)
-    if not product:
-        return jsonify({'error': 'Product not found'}), 404
+def get_parts():
+    parts = Part.query.all()
+    result = [{'id': p.id, 'name': p.name, 'quantity': p.quantity} for p in parts]
+    return jsonify(result), 200
 
+
+def add_part():
     data = request.get_json()
-
-    product.name = data['name']
-    product.price = float(data['price'])
-    product.quantity = int(data['quantity'])
-    product.photo = data.get('photo', product.photo)
-
-    product.characteristics = data.get('characteristics', product.characteristics)
-    product.color = data.get('color', product.color)
-    product.plastic = data.get('plastic', product.plastic)
-    product.printing_time = data.get('printing_time', product.printing_time)
-    product.cost_price = float(data.get('cost_price', product.cost_price))
-    product.dimensions = data.get('dimensions', product.dimensions)
-    product.comment = data.get('comment', product.comment)
-    product.status = data.get('status', product.status)
-
-    # Аналитика
-    product.sales_count = int(data.get('sales_count', product.sales_count))
-    # Если хотим обновлять дату последней продажи, можно:
-    # product.last_sold_date = datetime.datetime.utcnow()
-
+    new_part = Part(
+        name=data['name'],
+        quantity=int(data.get('quantity', 0))
+    )
+    db.session.add(new_part)
     db.session.commit()
-    return jsonify({'message': 'Product updated successfully'}), 200
+    return jsonify({'message': 'Part added successfully'}), 201
 
 
-# 5) Архивирование (вместо удаления)
-def archive_product(product_id):
-    product = Product.query.get(product_id)
-    if not product:
-        return jsonify({'error': 'Product not found'}), 404
-
-    product.status = 'Archived'
-    db.session.commit()
-    return jsonify({'message': 'Product archived successfully'}), 200
+def get_bom(product_id):
+    bom_items = ProductPart.query.filter_by(product_id=product_id).all()
+    result = [{'id': b.id, 'part_id': b.part_id, 'part_name': b.part.name, 'quantity_needed': b.quantity_needed} for b
+              in bom_items]
+    return jsonify(result), 200
 
 
-def update_order(order_id):
-    """
-    Обновляет статус заказа. Если статус -> 'Собран' или 'Выполнен', списываются детали.
-    """
-    order = Order.query.get(order_id)
-    if not order:
-        return jsonify({'error': 'Order not found'}), 404
-
+def add_bom():
     data = request.get_json()
-    new_status = data.get('orderStatus')
-    old_status = order.order_status
-
-    # Обновляем статус
-    order.order_status = new_status
-
-    # Если статус переходит в "Собран" или "Выполнен", списываем детали
-    if new_status in ['Собран', 'Выполнен'] and old_status not in ['Собран', 'Выполнен']:
-        for item in order.products or []:
-            product_id = item.get('id')
-            quantity_in_order = item.get('quantity', 1)
-
-            # Проверяем детали через ProductPart
-            bom_items = ProductPart.query.filter_by(product_id=product_id).all()
-            for bom in bom_items:
-                part = bom.part
-                total_needed = bom.quantity_needed * quantity_in_order
-
-                if part.quantity < total_needed:
-                    return jsonify(
-                        {'error': f'Not enough {part.name}. Required {total_needed}, available {part.quantity}'}), 400
-
-                part.quantity -= total_needed
-
+    new_bom = ProductPart(
+        product_id=data['product_id'],
+        part_id=data['part_id'],
+        quantity_needed=int(data['quantity_needed'])
+    )
+    db.session.add(new_bom)
     db.session.commit()
-    return jsonify({'message': 'Order updated successfully'}), 200
-
-
-def check_shortages():
-    """
-    Возвращает список недостающих деталей для всех заказов.
-    """
-    from collections import defaultdict
-    shortages = defaultdict(lambda: {'needed': 0, 'available': 0})
-
-    orders = Order.query.filter(Order.order_status.in_(['Новый', 'Ожидание'])).all()
-
-    for order in orders:
-        for item in order.products or []:
-            product_id = item.get('id')
-            quantity_in_order = item.get('quantity', 1)
-
-            bom_items = ProductPart.query.filter_by(product_id=product_id).all()
-            for bom in bom_items:
-                part = bom.part
-                total_needed = bom.quantity_needed * quantity_in_order
-                shortages[part.name]['needed'] += total_needed
-                shortages[part.name]['available'] = part.quantity
-
-    return jsonify([
-        {'part': name, **data, 'shortage': max(0, data['needed'] - data['available'])}
-        for name, data in shortages.items()
-    ]), 200
+    return jsonify({'message': 'BOM added successfully'}), 201
 
 
 # -------------------------
@@ -278,7 +202,11 @@ def register_routes(app):
     app.add_url_rule('/upload_image', view_func=upload_image, methods=['POST'])
     app.add_url_rule('/products', view_func=get_products, methods=['GET'])
     app.add_url_rule('/products', view_func=add_product, methods=['POST'])
-    app.add_url_rule('/products/<int:product_id>', view_func=update_product, methods=['PUT'])
-    app.add_url_rule('/products/<int:product_id>', view_func=archive_product, methods=['DELETE'])
-    app.add_url_rule('/update_order/<int:order_id>', view_func=update_order, methods=['PUT'])
-    app.add_url_rule('/check_shortages', view_func=check_shortages, methods=['GET'])
+
+    # Части
+    app.add_url_rule('/parts', view_func=get_parts, methods=['GET'])
+    app.add_url_rule('/parts', view_func=add_part, methods=['POST'])
+
+    # BOM
+    app.add_url_rule('/products/<int:product_id>/bom', view_func=get_bom, methods=['GET'])
+    app.add_url_rule('/products/bom', view_func=add_bom, methods=['POST'])
