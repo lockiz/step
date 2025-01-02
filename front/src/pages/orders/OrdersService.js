@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5001"; // Базовый URL для API
+const API_BASE_URL = "http://127.0.0.1:5001"; // Базовый URL для API
 
 // Получение списка заказов
 export async function getOrders() {
