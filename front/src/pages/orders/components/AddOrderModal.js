@@ -2,45 +2,53 @@ import React, {useEffect, useState} from 'react';
 import {Button, DatePicker, Divider, Drawer, Form, InputNumber, Select, Space, notification, Input} from 'antd';
 import ProductTableWithParts from './ProductTableWithParts';
 import moment from 'moment';
+import dayjs from 'dayjs';
 
 const {Option} = Select;
 
 const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
     const [form] = Form.useForm();
-    const [orderSelectedProducts, setOrderSelectedProducts] = useState([]); // Список выбранных товаров в заказе
-    const [originalTotalAmount, setOriginalTotalAmount] = useState(0); // Общая стоимость товаров без учета скидки
-    const [totalAmount, setTotalAmount] = useState(0); // Итоговая сумма заказа с учетом скидки
-    const [discount, setDiscount] = useState(0); // Текущая скидка
+    const [orderSelectedProducts, setOrderSelectedProducts] = useState([]); // Список выбранных товаров
+    const [originalTotalAmount, setOriginalTotalAmount] = useState(0); // Общая стоимость без скидки
+    const [totalAmount, setTotalAmount] = useState(0);  // Итоговая сумма с учётом скидки
+    const [discount, setDiscount] = useState(0);
 
-    // Вычисляем дату через 3 дня
-    const threeDaysLater = moment().add(3, 'days');
-
-    // Функция для вычисления общей стоимости товаров на основе их цены и количества
+    // Подсчёт общей стоимости
     const calculateTotalAmount = (products) =>
-        products.reduce((total, product) => total + (product.price || 0) * (product.quantity || 1), 0);
+        products.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
-    // Пересчет суммы при изменении списка товаров
+    // Пересчитываем сумму при изменении списка товаров или скидки
     useEffect(() => {
         const newOriginalTotal = calculateTotalAmount(orderSelectedProducts);
         setOriginalTotalAmount(newOriginalTotal);
         setTotalAmount(newOriginalTotal - discount);
     }, [orderSelectedProducts, discount]);
 
-    // Заполнение полей формы при редактировании
+    // При открытии модалки или смене `order` заполняем форму
     useEffect(() => {
         if (order) {
+            // Редактирование
             form.setFieldsValue({
                 ...order,
-                prepayment: order.prepayment ? parseFloat(order.prepayment) : 0,
-                discount: order.discount ? parseFloat(order.discount) : 0,
-                orderDate: order.orderDate && order.orderDate.length === 2
-                    ? [moment(order.orderDate[0]), moment(order.orderDate[1])]
-                    : [], // Если даты нет, устанавливаем пустой массив
+                prepayment: parseFloat(order.prepayment || 0),
+                discount: parseFloat(order.discount || 0),
+                orderDate: Array.isArray(order.order_date) && order.order_date.length === 2
+                    ? [dayjs(order.order_date[0], 'YYYY-MM-DD'), dayjs(order.order_date[1], 'YYYY-MM-DD')]
+                    : [],
+                deliveryType: order.delivery_type,
+                deliveryAddress: order.delivery_address,
+                pickupPoint: order.pickup_point,
+                trackingNumber: order.tracking_number,
+                avitoLink: order.avito_link,
+                avitoProfileLink: order.avito_profile_link,
+                orderStatus: order.order_status,
+                totalAmount: order.total_amount,
             });
             setOrderSelectedProducts(order.products || []);
             setTotalAmount(order.totalAmount || 0);
             setDiscount(parseFloat(order.discount || 0));
         } else {
+            // Новый заказ
             form.resetFields();
             setOrderSelectedProducts([]);
             setTotalAmount(0);
@@ -48,17 +56,19 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
         }
     }, [order, form]);
 
-
+    // Сохранение заказа (и при создании, и при редактировании)
     const handleSave = async () => {
         try {
             const values = await form.validateFields();
-            const formattedOrderDate = values.orderDate && values.orderDate.length === 2
-                ? [values.orderDate[0].format('YYYY-MM-DD'), values.orderDate[1].format('YYYY-MM-DD')]
-                : [];
+            const formattedOrderDate =
+                values.orderDate && values.orderDate.length === 2
+                    ? [values.orderDate[0].format('YYYY-MM-DD'), values.orderDate[1].format('YYYY-MM-DD')]
+                    : [];
 
+            // ГАРАНТИРУЕМ, что поле products – это массив:
             const orderData = {
                 ...values,
-                products: orderSelectedProducts,
+                products: Array.isArray(orderSelectedProducts) ? orderSelectedProducts : [],
                 totalAmount,
                 orderDate: formattedOrderDate,
                 prepayment: parseFloat(values.prepayment || 0),
@@ -66,14 +76,18 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
             };
 
             console.log('Сохранение заказа:', orderData);
-            onSubmit(orderData);
-            onCancel();
+            onSubmit(orderData);  // передаём наружу
+            onCancel();           // закрываем модалку
         } catch (error) {
             console.error('Ошибка валидации формы:', error);
+            notification.error({
+                message: 'Ошибка',
+                description: 'Не удалось сохранить заказ.'
+            });
         }
     };
 
-
+    // Отмена
     const handleCancel = () => {
         form.resetFields();
         setOrderSelectedProducts([]);
@@ -81,13 +95,13 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
         onCancel();
     };
 
+    // Слежение за изменением полей (например, скидки)
     const handleFieldChange = (changedValues) => {
         const {discount: newDiscount} = changedValues;
-
         if (newDiscount !== undefined) {
-            const parsedDiscount = parseFloat(newDiscount) || 0;
-            setDiscount(parsedDiscount);
-            setTotalAmount(originalTotalAmount - parsedDiscount);
+            const parsed = parseFloat(newDiscount) || 0;
+            setDiscount(parsed);
+            setTotalAmount(originalTotalAmount - parsed);
         }
     };
 
@@ -98,12 +112,12 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
 
     return (
         <Drawer
-            title={order ? 'Редактировать заказ' : 'Новый заказ'} // Меняем заголовок
+            title={order ? 'Редактировать заказ' : 'Новый заказ'}
             width={720}
             onClose={handleCancel}
             open={visible}
             bodyStyle={{paddingBottom: 80}}
-            footer={`Общая стоимость заказа: ${totalAmount}р`} // Отображение итоговой суммы
+            footer={`Общая стоимость заказа: ${totalAmount}р`}
             extra={
                 <Space>
                     <Button onClick={handleCancel}>Отмена</Button>
@@ -119,23 +133,23 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 initialValues={{
                     remember: true,
                     size: 'small',
-                    orderResponsible: 'Евгений Г.',  // Устанавливаем значение по умолчанию для "Ответственного"
-                    priority: 'Обычный',  // Устанавливаем значение по умолчанию для "Приоритета"
+                    orderResponsible: 'Евгений Г.',
+                    priority: 'Обычный',
                     orderStatus: 'Новый заказ',
-                    orderDate: [moment(), threeDaysLater],  // Устанавливаем значения по умолчанию: сегодня и через 3 дня
+                    orderDate: [dayjs(), dayjs().add(3, 'day')],
                     orderSource: 'Avito',
-
                 }}
                 labelAlign="left"
                 size="small"
-                onValuesChange={handleFieldChange} // Обработчик изменения значений формы
+                onValuesChange={handleFieldChange}
             >
-                <Divider orientation="left" orientationMargin="0">Детали заказа</Divider>
+                <Divider orientation="left" orientationMargin="0">
+                    Детали заказа
+                </Divider>
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="orderResponsible"
                     label="Ответственный"
-                    rules={[{required: false, message: 'Выберите ответственного'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Евгений Г.">Евгений Г.</Option>
@@ -144,10 +158,9 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="priority"
                     label="Приоритет"
-                    rules={[{required: false, message: 'Выберите приоритет'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Обычный">Обычный</Option>
@@ -157,10 +170,9 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="orderStatus"
                     label="Статус заказа"
-                    rules={[{required: false, message: 'Выберите статус'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Новый заказ">Новый заказ</Option>
@@ -174,19 +186,17 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="orderDate"
                     label="Дата заказа / отправки"
-                    rules={[{required: false, message: 'Выберите дату'}]}
                 >
-                    <DatePicker.RangePicker style={{width: '100%'}}/>
+                    <DatePicker.RangePicker disabled={[order ? true : false, false]} style={{width: '100%'}}/>
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="orderSource"
                     label="Источник заказа"
-                    rules={[{required: false, message: 'Укажите источник заказа'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Avito">Avito</Option>
@@ -196,10 +206,9 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="deliveryType"
                     label="Доставка / самовывоз"
-                    rules={[{required: false, message: 'Укажите способ доставки'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Доставка Avito">Доставка Avito</Option>
@@ -209,19 +218,17 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="deliveryAddress"
                     label="Адрес доставки"
-                    rules={[{required: false, message: 'Укажите адрес доставки'}]}
                 >
                     <Input placeholder="..."/>
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="pickupPoint"
                     label="ПВЗ"
-                    rules={[{required: false, message: 'Укажите ПВЗ'}]}
                 >
                     <Select placeholder="...">
                         <Option value="Avito">Avito</Option>
@@ -234,28 +241,25 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="trackingNumber"
                     label="Номер отправления"
-                    rules={[{required: false, message: 'Укажите номер отправления'}]}
                 >
                     <Input placeholder="..."/>
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="avitoLink"
                     label="Ссылка на заказ в Авито"
-                    rules={[{required: false, message: 'Укажите ссылку'}]}
                 >
                     <Input placeholder="..."/>
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="avitoProfileLink"
                     label="Ссылка на профиль Авито"
-                    rules={[{required: false, message: 'Укажите ссылку на профиль'}]}
                 >
                     <Input placeholder="..."/>
                 </Form.Item>
@@ -265,16 +269,14 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                     name="prepayment"
                     label="Предоплата"
                     rules={[
-                        {required: false, message: 'Укажите сумму предоплаты'},
-                        {type: 'number', min: 0, message: 'Введите положительное число'}, // Тип данных должен быть числовым
+                        {type: 'number', min: 0, message: 'Введите положительное число'},
                     ]}
                 >
                     <Input type="number" placeholder="..."/>
                 </Form.Item>
 
-
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="discount"
                     label="Скидка"
                 >
@@ -282,14 +284,17 @@ const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="totalAmount"
                     label="Общая стоимость заказа"
                 >
                     <Input placeholder={totalAmount.toString()} disabled/>
                 </Form.Item>
 
-                <Divider orientation="left" orientationMargin="0">Товары в заказе</Divider>
+                <Divider orientation="left" orientationMargin="0">
+                    Товары в заказе
+                </Divider>
+
                 <ProductTableWithParts
                     selectedProducts={orderSelectedProducts}
                     setSelectedProducts={setOrderSelectedProducts}

@@ -12,7 +12,13 @@ const ProductTableWithParts = ({selectedProducts, setSelectedProducts, visible})
                 throw new Error('Failed to fetch products');
             }
             const data = await response.json();
-            setProducts(data);
+
+// Добавляем защиту, чтобы точно был массив:
+            const safeData = Array.isArray(data) ? data : [];
+
+// Теперь устанавливаем в state только массив
+            setProducts(safeData);
+
         } catch (error) {
             console.error(error);
             notification.error({message: 'Ошибка загрузки товаров'});

@@ -22,6 +22,7 @@ class Order(db.Model):
     discount = db.Column(db.String(50), nullable=True)
     total_amount = db.Column(db.String(50), nullable=True)
     products = db.Column(db.JSON, nullable=True)  # JSON-список товаров в заказе
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Дата создания заказа
 
     def __repr__(self):
         return f"<Order {self.id}>"

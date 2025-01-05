@@ -53,17 +53,23 @@ const OrdersPage = () => {
     const handleSaveOrder = async (orderData) => {
         try {
             if (editingOrder) {
-                await updateOrder(editingOrder.id, orderData); // Обновление заказа
+                // Редактирование заказа
+                const updatedOrder = await updateOrder(editingOrder.id, orderData);
+                setOrders((prevOrders) =>
+                    prevOrders.map((order) =>
+                        order.id === editingOrder.id ? {...order, ...orderData} : order
+                    )
+                );
                 notification.success({message: 'Заказ успешно обновлён'});
             } else {
-                await createOrder(orderData); // Создание нового заказа
+                // Создание нового заказа
+                const newOrder = await createOrder(orderData);
+                setOrders((prevOrders) => [...prevOrders, newOrder]);
                 notification.success({message: 'Заказ успешно добавлен'});
             }
-
             setShowModalAddOrder(false);
             setEditingOrder(null);
-            await fetchOrders(); // Обновляем заказы
-            await fetchShortages(); // Обновляем недостающие детали
+            await fetchOrders();
         } catch (error) {
             notification.error({message: 'Ошибка сохранения заказа', description: error.toString()});
         }
@@ -75,7 +81,7 @@ const OrdersPage = () => {
             <OrdersHeader setShowModal={setShowModalAddOrder}/>
             <OrdersTable
                 orders={orders}
-                onEditOrder={handleEditOrder} // Передаём обработчик редактирования
+                onEditOrder={handleEditOrder}
                 style={{marginTop: '20px'}}
             />
             <AddOrderModal

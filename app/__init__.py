@@ -1,8 +1,10 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_migrate import Migrate
 
 db = SQLAlchemy()
+migrate = Migrate()  # Создаем объект Flask-Migrate
 
 
 def create_app():
@@ -21,6 +23,7 @@ def create_app():
         return response
 
     db.init_app(app)
+    migrate.init_app(app, db)  # Подключаем Flask-Migrate к приложению и SQLAlchemy
 
     with app.app_context():
         from .routes import register_routes

@@ -401,6 +401,7 @@ def calculate_shortages():
 def register_routes(app):
     app.add_url_rule('/add_order', view_func=add_order, methods=['POST'])
     app.add_url_rule('/get_orders', view_func=get_orders, methods=['GET'])
+    app.add_url_rule('/orders/<int:order_id>', view_func=update_order, methods=['PUT'])
 
     # Товары
     app.add_url_rule('/products', view_func=get_products, methods=['GET'])

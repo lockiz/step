@@ -18,14 +18,13 @@ const statuses = {
     'Выполнен': "Выполнен",
 };
 
-const OrdersTable = ({onEditOrder}) => {
-    const [orders, setOrders] = useState([]);
+const OrdersTable = ({orders, onEditOrder}) => {
 
     useEffect(() => {
         const fetchOrders = async () => {
             try {
                 const data = await getOrders();
-                setOrders(data);
+                // setOrders(data);
                 console.log(data)
             } catch (error) {
                 console.error("Ошибка при загрузке заказов:", error);
@@ -86,41 +85,45 @@ const OrdersTable = ({onEditOrder}) => {
             title: "Товары",
             dataIndex: "products",
             key: "products",
-            render: (products) => (
-                <Space size={16} wrap>
-                    {products.map((product) => (
-                        <Badge
-                            count={product.quantity}
-                            offset={[-10, 10]}
-                            style={{backgroundColor: "#108ee9", color: "#fff"}}
-                            key={product.key}
-                        >
-                            <Tooltip
-                                title={
-                                    <>
-                                        <div>Название: {product.name}</div>
-                                        <div>Количество: {product.quantity} шт.</div>
-                                        <div>Цена: {product.price} ₽</div>
-                                    </>
-                                }
+            render: (products) => {
+                const safeProducts = Array.isArray(products) ? products : [];
+                return (
+                    <Space size={16} wrap>
+                        {safeProducts.map((product) => (
+                            <Badge
+                                count={product.quantity}
+                                offset={[-10, 10]}
+                                style={{backgroundColor: "#108ee9", color: "#fff"}}
+                                key={product.key}
                             >
-                                <img
-                                    src={`http://localhost:5001/static/uploads/${product.photo}`}
-                                    alt={product.name}
-                                    style={{
-                                        width: 50,
-                                        height: 50,
-                                        objectFit: "cover",
-                                        borderRadius: "8px",
-                                    }}
-                                />
-                            </Tooltip>
-                        </Badge>
-                    ))}
-                </Space>
-            ),
-            default: true, // Показывать по умолчанию
+                                <Tooltip
+                                    title={
+                                        <>
+                                            <div>Название: {product.name}</div>
+                                            <div>Количество: {product.quantity} шт.</div>
+                                            <div>Цена: {product.price} ₽</div>
+                                        </>
+                                    }
+                                >
+                                    <img
+                                        src={`http://localhost:5001/static/uploads/${product.photo}`}
+                                        alt={product.name}
+                                        style={{
+                                            width: 50,
+                                            height: 50,
+                                            objectFit: "cover",
+                                            borderRadius: "8px",
+                                        }}
+                                    />
+                                </Tooltip>
+                            </Badge>
+                        ))}
+                    </Space>
+                );
+            },
+            default: true,
         },
+
         {
             title: "Сумма",
             dataIndex: "total_amount",
