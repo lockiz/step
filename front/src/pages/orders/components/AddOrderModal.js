@@ -1,79 +1,79 @@
 import React, {useEffect, useState} from 'react';
-import {Button, DatePicker, Divider, Drawer, Form, Input, Select, Space, notification, ConfigProvider} from 'antd';
-import ProductTableWithParts from "./ProductTableWithParts";
-import moment from 'moment'; // Для работы с датами
-
+import {Button, DatePicker, Divider, Drawer, Form, InputNumber, Select, Space, notification, Input} from 'antd';
+import ProductTableWithParts from './ProductTableWithParts';
+import moment from 'moment';
 
 const {Option} = Select;
 
-const AddOrderModal = ({visible, onCancel, onSubmit}) => {
+const AddOrderModal = ({visible, onCancel, onSubmit, order}) => {
     const [form] = Form.useForm();
     const [orderSelectedProducts, setOrderSelectedProducts] = useState([]); // Список выбранных товаров в заказе
     const [originalTotalAmount, setOriginalTotalAmount] = useState(0); // Общая стоимость товаров без учета скидки
     const [totalAmount, setTotalAmount] = useState(0); // Итоговая сумма заказа с учетом скидки
     const [discount, setDiscount] = useState(0); // Текущая скидка
+
     // Вычисляем дату через 3 дня
     const threeDaysLater = moment().add(3, 'days');
 
     // Функция для вычисления общей стоимости товаров на основе их цены и количества
-    const calculateTotalAmount = (products) => {
-        return products.reduce((total, product) => {
-            return total + (product.price || 0) * (product.quantity || 1);
-        }, 0);
-    };
+    const calculateTotalAmount = (products) =>
+        products.reduce((total, product) => total + (product.price || 0) * (product.quantity || 1), 0);
 
-    // Используем useEffect для пересчета суммы при изменении списка товаров
+    // Пересчет суммы при изменении списка товаров
     useEffect(() => {
-        const newOriginalTotal = calculateTotalAmount(orderSelectedProducts); // Считаем сумму товаров
-        setOriginalTotalAmount(newOriginalTotal); // Обновляем исходную сумму товаров
-        setTotalAmount(newOriginalTotal - discount); // Пересчитываем итоговую сумму с учетом скидки
-    }, [orderSelectedProducts]); // Срабатывает при изменении списка товаров
+        const newOriginalTotal = calculateTotalAmount(orderSelectedProducts);
+        setOriginalTotalAmount(newOriginalTotal);
+        setTotalAmount(newOriginalTotal - discount);
+    }, [orderSelectedProducts, discount]);
 
-    // Обработчик кнопки "Добавить" для валидации формы и сброса полей после отправки данных
-    const handleAdd = () => {
-        // Проверяем, что в заказе есть выбранные товары
-        if (orderSelectedProducts.length === 0) {
-            // Если товаров нет, показываем ошибку
-            notification.error({
-                message: 'Ошибка',
-                description: 'Пожалуйста, выберите хотя бы один товар для создания заказа.',
-                showProgress: true,
-                pauseOnHover: false,
-                placement: 'bottomRight',
+    // Заполнение полей формы при редактировании
+    useEffect(() => {
+        if (order) {
+            form.setFieldsValue({
+                ...order,
+                prepayment: order.prepayment ? parseFloat(order.prepayment) : 0,
+                discount: order.discount ? parseFloat(order.discount) : 0,
+                orderDate: order.orderDate && order.orderDate.length === 2
+                    ? [moment(order.orderDate[0]), moment(order.orderDate[1])]
+                    : [], // Если даты нет, устанавливаем пустой массив
             });
-            return;
+            setOrderSelectedProducts(order.products || []);
+            setTotalAmount(order.totalAmount || 0);
+            setDiscount(parseFloat(order.discount || 0));
+        } else {
+            form.resetFields();
+            setOrderSelectedProducts([]);
+            setTotalAmount(0);
+            setDiscount(0);
         }
+    }, [order, form]);
 
-        // Валидируем другие поля формы
-        form.validateFields()
-            .then((values) => {
-                const formattedOrderDate = values.orderDate.map(date => date.format('YYYY-MM-DD'));
-                const orderData = {
-                    ...values,
-                    products: orderSelectedProducts,
-                    totalAmount,
-                    orderDate: formattedOrderDate,
-                    prepayment: parseFloat(values.prepayment || 0),
-                    discount: parseFloat(values.discount || 0),
-                };
-                console.log('Добавленный заказ:', orderData);
-                onSubmit(orderData);
-                form.resetFields();
-                notification.success({
-                    message: 'Успех',
-                    description: 'Заказ был успешно добавлен!',
-                    showProgress: true,
-                    pauseOnHover: false,
-                    placement: 'bottomRight',
-                });
-                setOrderSelectedProducts([]);
-                setDiscount(0);
-            })
-            .catch((info) => console.log('Validation Failed:', info));
+
+    const handleSave = async () => {
+        try {
+            const values = await form.validateFields();
+            const formattedOrderDate = values.orderDate && values.orderDate.length === 2
+                ? [values.orderDate[0].format('YYYY-MM-DD'), values.orderDate[1].format('YYYY-MM-DD')]
+                : [];
+
+            const orderData = {
+                ...values,
+                products: orderSelectedProducts,
+                totalAmount,
+                orderDate: formattedOrderDate,
+                prepayment: parseFloat(values.prepayment || 0),
+                discount: parseFloat(values.discount || 0),
+            };
+
+            console.log('Сохранение заказа:', orderData);
+            onSubmit(orderData);
+            onCancel();
+        } catch (error) {
+            console.error('Ошибка валидации формы:', error);
+        }
     };
 
 
-    // Обработчик кнопки "Отмена" для сброса всех данных и закрытия формы
     const handleCancel = () => {
         form.resetFields();
         setOrderSelectedProducts([]);
@@ -81,32 +81,24 @@ const AddOrderModal = ({visible, onCancel, onSubmit}) => {
         onCancel();
     };
 
-    // Обработчик изменения полей формы
     const handleFieldChange = (changedValues) => {
-        const {discount: newDiscount, totalAmount: newTotalAmount} = changedValues;
+        const {discount: newDiscount} = changedValues;
 
-        // Если изменено поле "Скидка"
         if (newDiscount !== undefined) {
-            const parsedDiscount = parseFloat(newDiscount) || 0; // Преобразуем скидку в число
-            setDiscount(parsedDiscount); // Обновляем состояние скидки
-            setTotalAmount(originalTotalAmount - parsedDiscount); // Пересчитываем итоговую сумму
-        }
-        // Если изменено поле "Общая стоимость заказа"
-        else if (newTotalAmount !== undefined) {
-            const parsedTotalAmount = parseFloat(newTotalAmount) || 0; // Преобразуем сумму в число
-            const recalculatedDiscount = originalTotalAmount - parsedTotalAmount; // Пересчитываем скидку
-            setDiscount(recalculatedDiscount >= 0 ? recalculatedDiscount : 0); // Обновляем скидку, если она не отрицательна
+            const parsedDiscount = parseFloat(newDiscount) || 0;
+            setDiscount(parsedDiscount);
+            setTotalAmount(originalTotalAmount - parsedDiscount);
         }
     };
 
     const formItemLayout = {
-        labelCol: {span: 10}, // Настройка ширины метки
-        wrapperCol: {span: 14}, // Настройка ширины поля ввода
+        labelCol: {span: 10},
+        wrapperCol: {span: 14},
     };
 
     return (
         <Drawer
-            title="Новый заказ"
+            title={order ? 'Редактировать заказ' : 'Новый заказ'} // Меняем заголовок
             width={720}
             onClose={handleCancel}
             open={visible}
@@ -115,8 +107,8 @@ const AddOrderModal = ({visible, onCancel, onSubmit}) => {
             extra={
                 <Space>
                     <Button onClick={handleCancel}>Отмена</Button>
-                    <Button onClick={handleAdd} type="primary">
-                        Добавить
+                    <Button onClick={handleSave} type="primary">
+                        {order ? 'Сохранить' : 'Добавить'}
                     </Button>
                 </Space>
             }
@@ -269,17 +261,17 @@ const AddOrderModal = ({visible, onCancel, onSubmit}) => {
                 </Form.Item>
 
                 <Form.Item
-                    style={{marginBottom: '10px'}} // Устанавливаем отступ
+                    style={{marginBottom: '10px'}}
                     name="prepayment"
                     label="Предоплата"
                     rules={[
                         {required: false, message: 'Укажите сумму предоплаты'},
-                        { type: 'integer', min: 0, message: 'Введите положительное число' }
-
+                        {type: 'number', min: 0, message: 'Введите положительное число'}, // Тип данных должен быть числовым
                     ]}
                 >
-                    <Input placeholder="..."/>
+                    <Input type="number" placeholder="..."/>
                 </Form.Item>
+
 
                 <Form.Item
                     style={{marginBottom: '10px'}} // Устанавливаем отступ

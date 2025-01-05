@@ -1,106 +1,86 @@
-import React, { useEffect, useState } from "react";
+import React, {useEffect, useState} from "react";
 import ProTable from "@ant-design/pro-table";
-import { Tag, Tooltip, Badge, Space, Select, notification } from "antd";
-import { getOrders, updateOrder, checkShortages } from "../OrdersService";
-import dayjs from "dayjs";
-import "dayjs/locale/ru";
+import {Tag, Tooltip, Badge, Space, Button} from "antd";
+import {getOrders} from "../OrdersService"; // Импортируем вашу функцию
+import dayjs from "dayjs"; // Импортируем библиотеку для работы с датами
+import "dayjs/locale/ru"; // Добавляем русский язык для дат
+import {ConfigProvider} from 'antd';
+import ruRU from 'antd/lib/locale/ru_RU';
+
 
 dayjs.locale("ru");
 
 const statuses = {
     'Новый заказ': "Новый заказ",
-    'Собран': "Собран",
     'В доставке': "В доставке",
     'Клиент получил': "Клиент получил",
     'Отказ': "Отказ",
     'Выполнен': "Выполнен",
 };
 
-const OrdersTable = () => {
+const OrdersTable = ({onEditOrder}) => {
     const [orders, setOrders] = useState([]);
-    const [shortages, setShortages] = useState([]); // Для данных о недостающих деталях
-
-    // Загрузка заказов и недостающих деталей
-    const fetchOrdersAndShortages = async () => {
-        try {
-            const ordersData = await getOrders();
-            const shortagesData = await checkShortages();
-            setOrders(ordersData);
-            setShortages(shortagesData);
-        } catch (error) {
-            console.error("Ошибка при загрузке данных:", error);
-            notification.error({ message: "Ошибка загрузки данных", description: error.toString() });
-        }
-    };
 
     useEffect(() => {
-        fetchOrdersAndShortages();
+        const fetchOrders = async () => {
+            try {
+                const data = await getOrders();
+                setOrders(data);
+                console.log(data)
+            } catch (error) {
+                console.error("Ошибка при загрузке заказов:", error);
+            }
+        };
+        fetchOrders();
     }, []);
-
-    // Проверка недостающих деталей для заказа
-    const isShortage = (products) => {
-        return products.some(product => {
-            const shortage = shortages.find(s => s.part === product.name);
-            return shortage && shortage.shortage > 0;
-        });
-    };
-
-    // Обновление статуса заказа
-    const handleStatusChange = async (orderId, newStatus) => {
-        try {
-            await updateOrder(orderId, { orderStatus: newStatus });
-            notification.success({ message: "Статус заказа обновлён" });
-            fetchOrdersAndShortages(); // Обновляем заказы и недостающие детали
-        } catch (error) {
-            console.error("Ошибка обновления статуса заказа:", error);
-            notification.error({ message: "Ошибка обновления статуса", description: error.toString() });
-        }
-    };
 
     const columns = [
         {
             title: "Тег статуса",
-            dataIndex: "orderStatus",
-            key: "orderStatus",
+            dataIndex: "order_status",
+            key: "order_status",
             filters: Object.entries(statuses).map(([key, label]) => ({
                 text: label,
                 value: key,
             })),
-            onFilter: (value, record) => record.orderStatus.includes(value),
-            render: (status, record) => (
-                <Select
-                    defaultValue={status}
-                    style={{ width: 120 }}
-                    onChange={(newStatus) => handleStatusChange(record.id, newStatus)}
-                >
-                    {Object.entries(statuses).map(([key, label]) => (
-                        <Select.Option key={key} value={key}>
-                            {label}
-                        </Select.Option>
-                    ))}
-                </Select>
-            ),
+            onFilter: (value, record) => record.order_status.includes(value),
+            render: (status) => {
+                const colorMap = {
+                    'Новый заказ': "blue",
+                    'Собран': "orange",
+                    'В доставке': "purple",
+                    'Клиент получил': "green",
+                    'Отменён': "red",
+                    'Выполнен': "grey",
+                };
+                return <Tag color={colorMap[status]}>{statuses[status]}</Tag>;
+            },
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Отправить до",
-            dataIndex: "orderDate",
-            key: "orderDate",
-            render: (dates) => dayjs(dates[1]).format("D MMM"), // Форматируем дату
+            dataIndex: "order_date",
+            key: "order_date",
+            render: (dates) => dayjs(dates[1]).format("D MMM"), // Форматируем дату как "24 янв." или "31 дек."
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Доставка",
-            dataIndex: "deliveryType",
-            key: "deliveryType",
+            dataIndex: "delivery_type",
+            key: "delivery_type",
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Пункт выдачи",
-            dataIndex: "pickupPoint",
-            key: "pickupPoint",
+            dataIndex: "pickup_point",
+            key: "pickup_point",
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Номер отправления",
-            dataIndex: "trackingNumber",
-            key: "trackingNumber",
+            dataIndex: "tracking_number",
+            key: "tracking_number",
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Товары",
@@ -112,10 +92,7 @@ const OrdersTable = () => {
                         <Badge
                             count={product.quantity}
                             offset={[-10, 10]}
-                            style={{
-                                backgroundColor: isShortage(products) ? "red" : "#108ee9",
-                                color: "#fff",
-                            }}
+                            style={{backgroundColor: "#108ee9", color: "#fff"}}
                             key={product.key}
                         >
                             <Tooltip
@@ -128,7 +105,7 @@ const OrdersTable = () => {
                                 }
                             >
                                 <img
-                                    src={product.photo}
+                                    src={`http://localhost:5001/static/uploads/${product.photo}`}
                                     alt={product.name}
                                     style={{
                                         width: 50,
@@ -142,47 +119,115 @@ const OrdersTable = () => {
                     ))}
                 </Space>
             ),
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Сумма",
-            dataIndex: "totalAmount",
-            key: "totalAmount",
+            dataIndex: "total_amount",
+            key: "total_amount",
             render: (value) => `${value} ₽`,
+            default: true, // Показывать по умолчанию
         },
         {
             title: "Ответственный",
-            dataIndex: "orderResponsible",
-            key: "orderResponsible",
+            dataIndex: "order_responsible",
+            key: "order_responsible",
+            default: false, // Скрыть по умолчанию
         },
         {
             title: "Приоритет",
             dataIndex: "priority",
             key: "priority",
+            default: false, // Скрыть по умолчанию
         },
         {
             title: "Источник заказа",
-            dataIndex: "orderSource",
-            key: "orderSource",
+            dataIndex: "order_source",
+            key: "order_source",
+            default: false, // Скрыть по умолчанию
         },
         {
             title: "Ссылка на заказ",
-            dataIndex: "avitoLink",
-            key: "avitoLink",
+            dataIndex: "avito_link",
+            key: "avito_link",
+            default: false, // Скрыть по умолчанию
         },
+        {
+            title: "Ссылка на профиль Авито",
+            dataIndex: "avito_profile_link",
+            key: "avito_profile_link",
+            render: (link) => (link ? <a href={link} target="_blank" rel="noopener noreferrer">{link}</a> : "—"),
+            default: false,
+        },
+        {
+            title: "Адрес доставки",
+            dataIndex: "delivery_address",
+            key: "delivery_address",
+            default: false,
+        },
+        {
+            title: "Предоплата",
+            dataIndex: "prepayment",
+            key: "prepayment",
+            render: (value) => `${value} ₽`,
+            default: false,
+        },
+        {
+            title: "Скидка",
+            dataIndex: "discount",
+            key: "discount",
+            render: (value) => `${value} ₽`,
+            default: false,
+        },
+        {
+            title: 'Действия',
+            key: 'actions',
+            render: (_, record) => (
+                <Space>
+                    <Button onClick={() => onEditOrder(record)}>Редактировать</Button>
+                </Space>
+            ),
+        }
+
     ];
 
     return (
-        <ProTable
-            headerTitle="Список заказов"
-            columns={columns}
-            dataSource={orders}
-            rowKey="id"
-            search={false}
-            options={{
-                setting: true,
-                fullScreen: true,
-            }}
-        />
+        <ConfigProvider locale={ruRU}>
+            <ProTable
+                headerTitle="Список заказов"
+                columns={columns}
+                dataSource={orders}
+                rowKey="id"
+                search={false}
+                options={{
+                    setting: true, // Включаем настройки (шестеренку)
+                    search: false,
+                    fullScreen: true
+                }}
+                columnsState={{
+                    defaultValue: {
+                        orderStatus: {show: true}, // Скрыть колонку по умолчанию
+                        orderDate: {show: true}, // Отображать колонку
+                        deliveryType: {show: true}, // Отображать колонку
+                        pickupPoint: {show: true}, // Скрыть колонку по умолчанию
+                        trackingNumber: {show: true}, // Скрыть колонку по умолчанию
+
+                        products: {show: false}, // Скрыть колонку по умолчанию
+                        totalAmount: {show: false}, // Скрыть колонку по умолчанию
+                        orderResponsible: {show: false}, // Скрыть колонку по умолчанию
+                        priority: {show: false}, // Скрыть колонку по умолчанию
+                        orderSource: {show: false}, // Скрыть колонку по умолчанию
+                        avitoLink: {show: false}, // Скрыть колонку по умолчанию
+                        avito_profile_link: {show: false},
+                        delivery_address: {show: false},
+                        prepayment: {show: false},
+                        discount: {show: false},
+                    },
+                    persistenceKey: "orders-table", // Ключ для сохранения состояния
+                    persistenceType: "localStorage", // Сохраняем настройки в localStorage,
+                }}
+            />
+        </ConfigProvider>
     );
 };
 

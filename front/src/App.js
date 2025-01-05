@@ -108,12 +108,12 @@ const App = () => {
                             {
                                 key: '3',
                                 icon: <UploadOutlined/>,
-                                label: 'Контакты',
+                                label: 'Наличие',
                             },
                             {
                                 key: '4',
                                 icon: <UploadOutlined/>,
-                                label: 'Товары',
+                                label: 'Контакты',
                             },
                             {
                                 key: '5',

@@ -1,13 +1,17 @@
-const BASE_URL = 'http://127.0.0.1:5001';
+const BASE_URL = 'http://localhost:5001';
 
 // Получение списка товаров
-export async function getProducts() {
+export const getProducts = async () => {
     const response = await fetch(`${BASE_URL}/products`);
     if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.statusText}`);
+        throw new Error('Ошибка загрузки товаров');
     }
-    return response.json();
-}
+    const data = await response.json();
+    return data.map((product) => ({
+        ...product,
+        bom: product.bom || [], // Убедитесь, что поле bom есть всегда
+    }));
+};
 
 // Добавление нового товара
 export async function addProduct(productData) {
@@ -82,6 +86,19 @@ export async function addPart(partData) {
     }
     return response.json();
 }
+
+export const updatePart = async (id, data) => {
+    const response = await fetch(`http://localhost:5001/parts/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        throw new Error('Ошибка обновления детали');
+    }
+    return response.json();
+};
+
 
 // Получение BOM для товара
 export async function getBOM(productId) {

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://127.0.0.1:5001"; // Базовый URL для API
+const API_BASE_URL = "http://localhost:5001"; // Базовый URL для API
 
 // Получение списка заказов
 export async function getOrders() {
@@ -21,29 +21,39 @@ export async function createOrder(orderData) {
     if (!response.ok) {
         throw new Error(`Failed to create order: ${response.statusText}`);
     }
+
+    // Пересчёт недостающих деталей
+    await calculateShortages();
     return response.json();
 }
+
 
 // Обновление заказа
 export async function updateOrder(orderId, updatedData) {
     const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(updatedData),
     });
     if (!response.ok) {
-        throw new Error(`Failed to update order: ${response.statusText}`);
+        const error = await response.json();
+        throw new Error(`Ошибка обновления заказа: ${error.message}`);
     }
     return response.json();
 }
 
-// Проверка недостающих деталей
-export async function checkShortages() {
-    const response = await fetch(`${API_BASE_URL}/check_shortages`);
+
+// Получение недостающих деталей
+export async function calculateShortages() {
+    const response = await fetch(`${API_BASE_URL}/calculate_shortages`, {
+        method: "GET",
+    });
     if (!response.ok) {
-        throw new Error(`Failed to fetch shortages: ${response.statusText}`);
+        throw new Error(`Failed to calculate shortages: ${response.statusText}`);
     }
     return response.json();
 }
+
+
+
+

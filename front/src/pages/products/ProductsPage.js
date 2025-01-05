@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
     Table,
+    Avatar,
     Button,
     Modal,
     Form,
@@ -10,7 +11,7 @@ import {
     Select,
     Space,
     notification,
-    ConfigProvider,
+    ConfigProvider, Drawer, Divider, Breadcrumb, Tabs,
 } from 'antd';
 import {UploadOutlined} from '@ant-design/icons';
 
@@ -23,7 +24,7 @@ import {
     getParts,
     addPart,
     getBOM,
-    addBOM,
+    addBOM, updatePart,
 } from './ProductsService';
 
 const {Option} = Select;
@@ -37,6 +38,9 @@ const ProductsPage = () => {
     const [fileList, setFileList] = useState([]); // Список файлов для загрузки
     const [form] = Form.useForm(); // Форма для товаров
     const [partForm] = Form.useForm(); // Форма для деталей
+    const [editingPart, setEditingPart] = useState(null); // Редактируемая деталь
+    const [activeTab, setActiveTab] = useState('1'); // Управление активным табом (1 - детали, 2 - товары)
+
 
     // Загрузка списка товаров и деталей при монтировании компонента
     useEffect(() => {
@@ -50,7 +54,7 @@ const ProductsPage = () => {
             const productsData = await getProducts();
             setProducts(productsData);
         } catch (error) {
-            notification.error({message: 'Ошибка загрузки товаров'});
+            notification.error({message: '...'});
         }
     };
 
@@ -60,7 +64,7 @@ const ProductsPage = () => {
             const partsData = await getParts();
             setParts(partsData);
         } catch (error) {
-            notification.error({message: 'Ошибка загрузки деталей'});
+            notification.error({message: '...'});
         }
     };
 
@@ -90,6 +94,7 @@ const ProductsPage = () => {
         }
     };
 
+
     // Открытие модального окна для добавления детали
     const handleAddPart = () => {
         partForm.resetFields();
@@ -100,35 +105,54 @@ const ProductsPage = () => {
     const handleSavePart = async () => {
         try {
             const values = await partForm.validateFields();
-            await addPart(values);
-            notification.success({message: 'Деталь добавлена'});
+            if (editingPart) {
+                // Если редактируемая деталь уже существует, обновляем её
+                await updatePart(editingPart.id, values);
+                notification.success({message: 'Деталь обновлена'});
+            } else {
+                // Иначе добавляем новую деталь
+                await addPart(values);
+                notification.success({message: 'Деталь добавлена'});
+            }
             setIsPartModalOpen(false);
-            loadParts();
+            loadParts(); // Обновляем список деталей
         } catch (error) {
-            notification.error({message: 'Ошибка при добавлении детали'});
+            notification.error({message: 'Ошибка при сохранении детали'});
         }
     };
+
+
+    const handleEditPart = (record) => {
+        setEditingPart(record);
+        partForm.setFieldsValue({...record}); // Заполняем форму данными детали
+        setIsPartModalOpen(true);
+    };
+
 
     // Открытие модального окна для редактирования товара
     const handleEditProduct = (record) => {
         setEditingProduct(record);
-        form.setFieldsValue({...record});
+        form.setFieldsValue({
+            ...record,
+            bom: record.bom?.map((item) => item.id), // Заполняем связи BOM
+        });
         setFileList([]);
         setIsProductModalOpen(true);
     };
 
-    // Загрузка изображения товара или детали
-    const handleUpload = async ({file}, formType = "part") => {
+
+    // Установите значение поля photo при загрузке изображения
+    // При загрузке фото обновляем поле "Фото (имя файла)"
+    const handleUpload = async ({file}, type = "product") => {
         try {
             const res = await uploadProductImage(file);
             if (res.filename) {
                 notification.success({message: 'Изображение загружено'});
 
-                // Установите имя файла в зависимости от типа формы
-                if (formType === "product") {
-                    form.setFieldsValue({photo: res.filename});
-                } else if (formType === "part") {
-                    partForm.setFieldsValue({photo: res.filename});
+                if (type === "product") {
+                    form.setFieldsValue({photo: res.filename}); // Обновляем значение фото в форме товара
+                } else if (type === "part") {
+                    partForm.setFieldsValue({photo: res.filename}); // Обновляем значение фото в форме детали
                 }
 
                 setFileList([
@@ -136,7 +160,7 @@ const ProductsPage = () => {
                         uid: file.uid,
                         name: res.filename,
                         status: 'done',
-                        url: `http://127.0.0.1:5001/static/uploads/${res.filename}`,
+                        url: `http://localhost:5001/static/uploads/${res.filename}`,
                     },
                 ]);
             }
@@ -148,6 +172,20 @@ const ProductsPage = () => {
 
     // Колонки для таблицы товаров
     const productColumns = [
+        {
+            title: 'Фото',
+            dataIndex: 'photo',
+            key: 'photo',
+            render: (photo) => (
+                photo ? (
+                    <img
+                        src={`http://localhost:5001/static/uploads/${photo}`}
+                        alt="Фото товара"
+                        style={{width: 50, height: 50, objectFit: 'cover'}}
+                    />
+                ) : '—'
+            ),
+        },
         {title: 'ID', dataIndex: 'id', key: 'id'},
         {title: 'Название', dataIndex: 'name', key: 'name'},
         {title: 'Цена', dataIndex: 'price', key: 'price'},
@@ -177,63 +215,123 @@ const ProductsPage = () => {
             title: 'Фото',
             dataIndex: 'photo',
             key: 'photo',
-            render: (photo) => (
-                photo ? <img src={`http://127.0.0.1:5001/static/uploads/${photo}`} alt="part"
-                             style={{width: 50, height: 50, objectFit: 'cover'}}/> : '—'
+            render: (photo) =>
+                photo ? (
+                    <img
+                        src={`http://localhost:5001/static/uploads/${photo}`}
+                        alt="Фото детали"
+                        style={{width: 50, height: 50, objectFit: 'cover'}}
+                    />
+                ) : (
+                    '—'
+                ),
+        },
+        {
+            title: 'Действия',
+            key: 'actions',
+            render: (_, record) => (
+                <Space>
+                    <Button onClick={() => handleEditPart(record)}>Редактировать</Button>
+                </Space>
             ),
         },
     ];
 
+    const formItemLayout = {
+        labelCol: {span: 10}, // Настройка ширины метки
+        wrapperCol: {span: 14}, // Настройка ширины поля ввода
+    };
+
+    const itemsTabs = [
+        {
+            key: '1',
+            label: 'Детали',
+            children: <Table
+                columns={partColumns}
+                dataSource={parts}
+                rowKey="id"
+                pagination={{pageSize: 10}}
+            />,
+        },
+        {
+            key: '2',
+            label: 'Товары',
+            children: <Table
+                columns={productColumns}
+                dataSource={products}
+                rowKey="id"
+                pagination={{pageSize: 10}}
+            />,
+        },
+    ];
+
+
     return (
         <ConfigProvider>
+            <Breadcrumb
+                style={{marginBottom: '24px'}}
+                items={[
+                    {
+                        title: <a href="">Главная</a>, // Ссылка на главную страницу
+                    },
+                    {
+                        title: 'Наличие', // Название текущей страницы
+                    },
+                ]}
+            />
+            <Tabs defaultActiveKey="1"
+                  onChange={(key) => setActiveTab(key)}
+                  tabBarExtraContent={{
+                      right: <Button
+                          type="primary"
+                          onClick={() => {
+                              if (activeTab === '1') {
+                                  handleAddPart(); // Открыть Drawer для деталей
+                              } else if (activeTab === '2') {
+                                  handleAddProduct(); // Открыть Drawer для товаров
+                              }
+                          }}
+                      >
+                          Добавить позицию
+                      </Button>,
+                  }}
+                  items={itemsTabs}
+                  type="card"/>
             <div style={{padding: '20px'}}>
-                <h1>Учет товаров</h1>
-                <Button
-                    type="primary"
-                    onClick={handleAddProduct}
-                    style={{marginBottom: 16}}
-                >
-                    Добавить товар
-                </Button>
-
-                <Table
-                    columns={productColumns}
-                    dataSource={products}
-                    rowKey="id"
-                    pagination={{pageSize: 10}}
-                />
-
-                <h2>Список деталей</h2>
-                <Button
-                    type="primary"
-                    onClick={handleAddPart}
-                    style={{marginBottom: 16}}
-                >
-                    Добавить деталь
-                </Button>
-
-                <Table
-                    columns={partColumns}
-                    dataSource={parts}
-                    rowKey="id"
-                    pagination={{pageSize: 10}}
-                />
-
                 {/* Модальное окно для товаров */}
-                <Modal
+                <Drawer
                     title={editingProduct ? 'Редактировать товар' : 'Добавить товар'}
+                    width={720}
+                    onClose={() => {
+                        setIsProductModalOpen(false);
+                        setEditingProduct(null);
+                    }}
                     open={isProductModalOpen}
-                    onOk={handleSaveProduct}
-                    onCancel={() => setIsProductModalOpen(false)}
-                    width={800}
+                    bodyStyle={{paddingBottom: 80}}
+                    extra={
+                        <Space>
+                            <Button onClick={() => setIsProductModalOpen(false)}>Отмена</Button>
+                            <Button type="primary" onClick={handleSaveProduct}>
+                                Сохранить
+                            </Button>
+                        </Space>
+                    }
                 >
-                    <Form form={form} layout="vertical">
+                    <Form
+                        form={form}
+                        {...formItemLayout}
+                        layout="horizontal"
+                        labelAlign="left"
+                        size="small"
+                        initialValues={editingProduct || {}}>
+                        <Divider orientation="left" orientationMargin="0">Основные данные</Divider>
+
                         <Form.Item
                             label="Название"
                             name="name"
                             rules={[{required: true, message: 'Введите название товара'}]}
                         >
-                            <Input/>
+                            <Input placeholder="..."/>
                         </Form.Item>
 
                         <Form.Item
@@ -252,81 +350,102 @@ const ProductsPage = () => {
                             <InputNumber style={{width: '100%'}}/>
                         </Form.Item>
 
+                        <Divider orientation="left" orientationMargin="0">Дополнительные данные</Divider>
                         <Form.Item label="Фото (имя файла)" name="photo">
-                            <Input disabled placeholder="После загрузки появится имя"/>
+                            <Input disabled placeholder="..."/>
                         </Form.Item>
                         <Upload
                             beforeUpload={() => false}
                             onChange={({file}) => {
                                 if (file.status === 'removed') {
-                                    partForm.setFieldsValue({photo: ''});
+                                    form.setFieldsValue({photo: ''});
+                                    setFileList([]);
                                     return;
                                 }
-                                if (file.status !== 'uploading') {
-                                    handleUpload({file}, "part");
-                                }
+                                handleUpload({file});
                             }}
                             fileList={fileList}
                             onRemove={() => {
                                 setFileList([]);
-                                partForm.setFieldsValue({photo: ''});
+                                form.setFieldsValue({photo: ''});
                             }}
                         >
                             <Button icon={<UploadOutlined/>}>Загрузить фото</Button>
                         </Upload>
 
-
-                        <Form.Item label="Характеристики" name="characteristics">
-                            <Input.TextArea rows={2}/>
-                        </Form.Item>
                         <Form.Item label="Цвет" name="color">
-                            <Input/>
+                            <Input placeholder="..."/>
                         </Form.Item>
+
                         <Form.Item label="Пластик" name="plastic">
-                            <Input/>
+                            <Input placeholder="..."/>
                         </Form.Item>
+
                         <Form.Item label="Время печати" name="printing_time">
-                            <Input/>
+                            <Input placeholder="..."/>
                         </Form.Item>
+
                         <Form.Item label="Себестоимость (₽)" name="cost_price">
                             <InputNumber style={{width: '100%'}}/>
                         </Form.Item>
+
                         <Form.Item label="Габариты" name="dimensions">
-                            <Input/>
+                            <Input placeholder="..."/>
                         </Form.Item>
-                        <Form.Item label="Комментарий" name="comment">
-                            <Input.TextArea rows={2}/>
-                        </Form.Item>
+
                         <Form.Item label="Статус" name="status">
                             <Select>
                                 <Option value="Active">Active</Option>
                                 <Option value="Archived">Archived</Option>
                             </Select>
                         </Form.Item>
+
                         <Form.Item label="Продано" name="sales_count">
                             <InputNumber style={{width: '100%'}}/>
                         </Form.Item>
+
+                        <Form.Item label="Характеристики" name="characteristics">
+                            <Input.TextArea rows={1} placeholder="..."/>
+                        </Form.Item>
+
+                        <Form.Item label="Комментарий" name="comment">
+                            <Input.TextArea rows={1} placeholder="..."/>
+                        </Form.Item>
+
+                        <Divider orientation="left" orientationMargin="0">Состав (BOM)</Divider>
                         <Form.Item label="Добавить детали (BOM)" name="bom">
-                            <Select mode="multiple" placeholder="Выберите детали">
+                            <Select mode="multiple" placeholder="...">
                                 {parts.map((part) => (
-                                    <Option key={part.id} value={part.id}>
+                                    <Option key={`${part.id}-${part.name}`} value={part.id}>
                                         {part.name}
                                     </Option>
                                 ))}
                             </Select>
                         </Form.Item>
                     </Form>
-                </Modal>
+                </Drawer>
+
 
                 {/* Модальное окно для деталей */}
-                <Modal
-                    title="Добавить деталь"
+                <Drawer
+                    title={editingPart ? 'Редактировать деталь' : 'Добавить деталь'}
+                    width={720}
+                    onClose={() => setIsPartModalOpen(false)}
                     open={isPartModalOpen}
-                    onOk={handleSavePart}
-                    onCancel={() => setIsPartModalOpen(false)}
-                    width={800}
+                    bodyStyle={{paddingBottom: 80}}
+                    extra={
+                        <Space>
+                            <Button onClick={() => setIsPartModalOpen(false)}>Отмена</Button>
+                            <Button onClick={handleSavePart} type="primary">Сохранить</Button>
+                        </Space>
+                    }
                 >
-                    <Form form={partForm} layout="vertical">
+                    <Form form={partForm}
+                          {...formItemLayout}
+                          layout="horizontal"
+                          labelAlign="left"
+                          size="small"
+                    >
                         <Form.Item
                             label="Название"
                             name="name"
@@ -363,18 +482,17 @@ const ProductsPage = () => {
                             <Input/>
                         </Form.Item>
                         <Form.Item label="Фото (имя файла)" name="photo">
-                            <Input disabled placeholder="После загрузки появится имя"/>
+                            <Input disabled placeholder="..."/>
                         </Form.Item>
                         <Upload
                             beforeUpload={() => false}
                             onChange={({file}) => {
                                 if (file.status === 'removed') {
                                     partForm.setFieldsValue({photo: ''});
+                                    setFileList([]);
                                     return;
                                 }
-                                if (file.status !== 'uploading') {
-                                    handleUpload({file}, "part");
-                                }
+                                handleUpload({file}, "part"); // Указываем, что это загрузка для детали
                             }}
                             fileList={fileList}
                             onRemove={() => {
@@ -385,11 +503,13 @@ const ProductsPage = () => {
                             <Button icon={<UploadOutlined/>}>Загрузить фото</Button>
                         </Upload>
 
+
                     </Form>
-                </Modal>
+                </Drawer>
             </div>
         </ConfigProvider>
-    );
+    )
+        ;
 };
 
 export default ProductsPage;
