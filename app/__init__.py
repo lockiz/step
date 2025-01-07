@@ -1,17 +1,13 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_migrate import Migrate
-
-db = SQLAlchemy()
-migrate = Migrate()  # Создаем объект Flask-Migrate
+from .extensions import db, migrate, jwt
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object('app.config.Config')
 
-    # Включаем CORS, чтобы фронт (на localhost:3000) мог делать запросы.
+    # Включаем CORS
     CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
     @app.after_request
@@ -23,11 +19,13 @@ def create_app():
         return response
 
     db.init_app(app)
-    migrate.init_app(app, db)  # Подключаем Flask-Migrate к приложению и SQLAlchemy
+    migrate.init_app(app, db)
+    jwt.init_app(app)
 
     with app.app_context():
-        from .routes import register_routes
-        register_routes(app)  # Регистрация всех маршрутов
-        db.create_all()  # Создаём таблицы (если их нет)
+        from .routes import register_routes, auth_bp
+        app.register_blueprint(auth_bp, url_prefix="/auth")
+        register_routes(app)
+        db.create_all()
 
     return app

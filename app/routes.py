@@ -1,11 +1,84 @@
 import os
 import datetime
 import uuid
-from flask import request, jsonify, current_app
+from flask import request, jsonify, current_app, Blueprint
 from werkzeug.utils import secure_filename
-
 from . import db
-from .models import db, Order, Product, ProductPart, Part
+from .models import db, Order, Product, ProductPart, Part, User, Role
+from werkzeug.security import check_password_hash, generate_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+
+auth_bp = Blueprint("auth", __name__)
+
+from flask_jwt_extended import create_refresh_token, jwt_required, get_jwt_identity
+
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    """
+    Эндпоинт для входа в систему.
+    Принимает имя пользователя и пароль, возвращает Access и Refresh токены.
+    """
+    try:
+        data = request.json
+        if not data or not data.get("username") or not data.get("password"):
+            return jsonify({"error": "Имя пользователя и пароль обязательны"}), 400
+
+        user = User.query.filter_by(username=data["username"]).first()
+        if not user or not user.check_password(data["password"]):
+            return jsonify({"error": "Неверное имя пользователя или пароль"}), 401
+
+        access_token = create_access_token(identity=f"{user.id}|{user.role.name}")
+        refresh_token = create_refresh_token(identity=f"{user.id}|{user.role.name}")
+        return jsonify({"access_token": access_token, "refresh_token": refresh_token, "role": user.role.name}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Ошибка при входе: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
+@auth_bp.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    """
+    Эндпоинт для обновления Access Token.
+    """
+    try:
+        identity = get_jwt_identity()
+        new_access_token = create_access_token(identity=identity)
+        return jsonify({"access_token": new_access_token}), 200
+    except Exception as e:
+        current_app.logger.error(f"Ошибка обновления токена: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
+@auth_bp.route("/user", methods=["GET"])
+@jwt_required()
+def current_user():
+    """
+    Возвращает данные текущего пользователя, извлекая их из токена.
+    """
+    try:
+        identity = get_jwt_identity()
+        user_id, role = identity.split("|")
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({"error": "Пользователь не найден"}), 404
+
+        return jsonify({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": role,
+            "first_name": user.first_name,
+            "last_name": user.last_name
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Ошибка получения данных пользователя: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
 
 # -------------------------------
 # Существующие маршруты и функции
@@ -393,6 +466,173 @@ def calculate_shortages():
     except Exception as e:
         print("Ошибка в calculate_shortages:", str(e))
         return jsonify({'error': str(e)}), 500
+
+
+import logging
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    data = request.json
+
+    try:
+        # Проверка данных
+        if not data:
+            raise ValueError("No input data provided")
+
+        # Проверка обязательных полей
+        username = data.get("username")
+        email = data.get("email")
+        password = data.get("password")
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+
+        if not username or not email or not password or not first_name or not last_name:
+            raise ValueError("Missing required fields")
+
+        # Проверка существующих пользователей
+        if User.query.filter_by(email=email).first():
+            return jsonify({"error": "Email already registered"}), 400
+        if User.query.filter_by(username=username).first():
+            return jsonify({"error": "Username already taken"}), 400
+
+        # Генерация хэша пароля
+        hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
+
+        # Назначение роли
+        default_role = Role.query.filter_by(name="User").first()
+        if not default_role:
+            raise ValueError("Default role 'User' not found")
+
+        # Создание пользователя
+        new_user = User(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            avatar_url=data.get("avatar_url"),
+            password_hash=hashed_password,
+            role_id=default_role.id,
+        )
+
+        db.session.add(new_user)
+        db.session.commit()
+
+        return jsonify({"message": "User registered successfully"}), 201
+
+    except Exception as e:
+        logging.error(f"Error in /auth/register: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+def parse_identity(identity):
+    """
+    Парсит строку токена вида 'id|role' и возвращает словарь.
+    """
+    try:
+        user_id, role = identity.split("|")
+        return {"id": int(user_id), "role": role}
+    except ValueError:
+        raise ValueError("Неверный формат токена")
+
+
+@auth_bp.route('/users', methods=['GET'])
+@jwt_required()
+def get_users():
+    """
+    Возвращает список всех пользователей. Доступно только администраторам.
+    """
+    try:
+        current_user_data = parse_identity(get_jwt_identity())
+        if current_user_data["role"] != "Admin":
+            return jsonify({"error": "Доступ запрещен"}), 403
+
+        users = User.query.all()
+        return jsonify([
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "avatar_url": user.avatar_url,
+                "role": user.role.name,
+                "is_approved": user.is_approved
+            }
+            for user in users
+        ]), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@auth_bp.route('/users/<int:user_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_user(user_id):
+    """
+    Одобрение пользователя. Доступно только администраторам.
+    """
+    try:
+        current_user_data = parse_identity(get_jwt_identity())
+        if current_user_data["role"] != "Admin":
+            return jsonify({"error": "Доступ запрещен"}), 403
+
+        user_to_approve = User.query.get(user_id)
+        if not user_to_approve:
+            return jsonify({"error": "Пользователь не найден"}), 404
+
+        user_to_approve.is_approved = True
+        db.session.commit()
+
+        return jsonify({"message": "Пользователь одобрен"}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@auth_bp.route('/users/<int:user_id>/role', methods=['POST'])
+@jwt_required()
+def update_user_role(user_id):
+    """
+    Обновление роли пользователя. Доступно только администраторам.
+    """
+    try:
+        current_user_data = parse_identity(get_jwt_identity())
+        if current_user_data["role"] != "Admin":
+            return jsonify({"error": "Доступ запрещен"}), 403
+
+        data = request.json
+        new_role = data.get("role")
+
+        if new_role not in ["User", "Partner", "Admin"]:
+            return jsonify({"error": "Некорректная роль"}), 400
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "Пользователь не найден"}), 404
+
+        user.role.name = new_role
+        db.session.commit()
+        return jsonify({"message": "Роль обновлена"}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@auth_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user(user_id):
+    current_user_data = get_jwt_identity()  # Переименовали переменную
+    user = User.query.get(current_user_data["id"])
+
+    if not user or user.role.name != "Admin":
+        return jsonify({"error": "Доступ запрещен"}), 403
+
+    user_to_delete = User.query.get(user_id)
+    if not user_to_delete:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    db.session.delete(user_to_delete)
+    db.session.commit()
+
+    return jsonify({"message": "Пользователь удален"}), 200
 
 
 # -------------------------

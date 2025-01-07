@@ -1,0 +1,138 @@
+.
+├── 1.ipynb
+├── 1.py
+├── __pycache__
+├── app
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── __init__.cpython-310.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   ├── config.cpython-310.pyc
+│   │   ├── config.cpython-311.pyc
+│   │   ├── models.cpython-310.pyc
+│   │   ├── models.cpython-311.pyc
+│   │   ├── routes.cpython-310.pyc
+│   │   └── routes.cpython-311.pyc
+│   ├── config.py
+│   ├── models.py
+│   ├── routes.py
+│   └── static
+│       └── uploads
+│           ├── 20241231_000226_dd24338ec5d94b1fbc8eb8799c884ff9.png
+│           ├── 20241231_001744_75912ff036634b9e9c88686874dc3bd8.png
+│           ├── 20250102_163808_31ff7240c60b430c920f280eeb52ae0c.png
+│           ├── 20250102_164457_1d029bb13cf84371a8fa7a72cf35bdf4.png
+│           ├── 20250102_165000_6cae4fa27be247bca588eb7e78a6a28d.png
+│           ├── 20250102_165021_77f4f338806e47ca982199e919771c72.png
+│           ├── 20250102_165722_ec8afab86f614b50a5ebaf071b720693.png
+│           ├── 20250102_170156_75263a9cff8c488ba4ca9941873f34ca.png
+│           ├── 20250102_170235_14ec21c2375447e6a9f2cb0ede0f89a8.png
+│           ├── 20250102_170517_f028f80dba3743e39abfb4a050e77570.png
+│           ├── 20250102_170651_5c7b9be3d32b4d2497fcc7820923c514.png
+│           ├── 20250102_171041_d6295806aedd4b28831f7b820e141673.png
+│           ├── 20250102_171224_a1d114f2c2d74aab80d8ce17428f556a.png
+│           ├── 20250102_174925_2fb2490c4c2b4623a6fa4a6792924feb.png
+│           ├── 20250102_174940_9814414dbb5b4c8cb726f53b8fa74251.png
+│           ├── 20250102_175225_93739e6c64014b2cbf56d5db15e904a0.png
+│           ├── 20250102_181355_3055390726724115b5079dca72c95db4.png
+│           ├── 20250102_181641_dad7c6c233314243ac924dcbbdb10e8d.jpeg
+│           ├── 20250102_181756_14984cc828e64bf3a84bef02e9a7b0f0.jpeg
+│           ├── 20250102_182053_61c74e00bbf74fe385bcdbe636ddf580.jpeg
+│           ├── 20250102_182522_bb9821f35463445a800a7ffcb912d567.png
+│           ├── 20250102_182534_fc5b94474f89444d841be15d89ff1238.png
+│           ├── 20250102_183512_82403d2a83ef468d94174632dae8bd52.png
+│           ├── 20250102_215314_cec1cc21a0814afbbc855d10a58fe153.png
+│           ├── 20250102_215700_39e5caf12c0a44669696a8a954e8d99f.png
+│           ├── 20250102_215828_e2c142c975e740e4856940533e6cda19.png
+│           ├── 20250102_222208_516607f98a804bf288c79a09e71b502e.png
+│           ├── 20250102_222218_0dfdf32a8fe247bca98032ff77d33c6e.png
+│           ├── 20250102_222237_7b662c4abb844a43a58c39cc3fc04f0f.png
+│           ├── 20250102_222252_cb041779f0af48c79fa61c98c0535e39.png
+│           ├── 20250102_222324_636b9842b0874837804031333b3eef4b.png
+│           ├── 20250102_223513_0ffdb6fb71b54b8eb35f7bce851303b3.png
+│           ├── 20250102_223541_4d7fb52f572346c5bc7dff0bcdac64d2.png
+│           ├── 20250102_223611_6789efedcae54f8291d9f243d8b6a7ae.png
+│           ├── 20250102_224621_a22bb9fce017491abc892b8692e29c37.png
+│           ├── 20250104_051729_e0045fb7003c45e4a6d065e16b60c763.png
+│           ├── 20250104_063545_4c53318cd6894b47a4d5f6925a59a5d8.jpeg
+│           ├── 20250104_063557_42cd5ad6dc374541bb8d1684bfd6d47c.png
+│           ├── 20250104_063614_6c460e66308b46ffafeeb6224f8e7f9f.png
+│           ├── 20250104_064006_d1d3f71561ad41d3b595b6a8e8aba463.png
+│           ├── 20250104_070345_ab91d048b5034d93b06a74226b7fa951.png
+│           ├── 20250104_070401_6aecb19bc90546caa6a5d35793c2b1ea.png
+│           ├── 20250104_151332_1faabb914cce42eca85091c8e667e540.png
+│           ├── 20250104_151529_b9f42e6a55d04ec39a642f952ab3efd5.png
+│           ├── 20250104_151534_fb31a731140d48ddb6506142bd3283eb.png
+│           ├── 20250104_151543_209819ca09634258a9b87586796a3d0d.png
+│           └── 20250105_094940_7d091422f26846b69ca5d67c31788054.jpeg
+├── front
+│   ├── README.md
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── public
+│   │   ├── favicon.ico
+│   │   ├── index.html
+│   │   ├── logo192.png
+│   │   ├── logo512.png
+│   │   ├── manifest.json
+│   │   └── robots.txt
+│   ├── src
+│   │   ├── App.css
+│   │   ├── App.js
+│   │   ├── App.test.js
+│   │   ├── components
+│   │   │   ├── header
+│   │   │   │   ├── HeaderApp.js
+│   │   │   │   └── components
+│   │   │   │       └── TabTitle.js
+│   │   │   └── left_side_menu
+│   │   │       └── components
+│   │   │           └── logo.js
+│   │   ├── imgs
+│   │   │   └── konch.png
+│   │   ├── index.css
+│   │   ├── index.js
+│   │   ├── logo.svg
+│   │   ├── pages
+│   │   │   ├── analytics
+│   │   │   ├── contacts
+│   │   │   ├── orders
+│   │   │   │   ├── OrdersPage.js
+│   │   │   │   ├── OrdersService.js
+│   │   │   │   └── components
+│   │   │   │       ├── AddOrderModal.js
+│   │   │   │       ├── OrderCard.js
+│   │   │   │       ├── OrderDetails.js
+│   │   │   │       ├── OrderForm.js
+│   │   │   │       ├── OrderList.js
+│   │   │   │       ├── OrdersHeaders.js
+│   │   │   │       ├── ProTable.js
+│   │   │   │       └── ProductTableWithParts.jsx
+│   │   │   ├── products
+│   │   │   │   ├── ProductsPage.js
+│   │   │   │   └── ProductsService.js
+│   │   │   └── task
+│   │   ├── reportWebVitals.js
+│   │   ├── services
+│   │   └── setupTests.js
+│   └── yarn.lock
+├── instance
+│   └── orders.db
+├── migrations
+│   ├── README
+│   ├── __pycache__
+│   │   └── env.cpython-310.pyc
+│   ├── alembic.ini
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions
+│       ├── __pycache__
+│       │   └── f4cc3e479a4f_initial_migration.cpython-310.pyc
+│       └── f4cc3e479a4f_initial_migration.py
+├── package-lock.json
+├── package.json
+├── requirements.txt
+├── run.py
+└── structure.txt
+
+28 directories, 108 files

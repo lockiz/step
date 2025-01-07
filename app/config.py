@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 
 class Config:
@@ -9,3 +10,8 @@ class Config:
 
     # Можно задать SECRET_KEY, если нужно
     SECRET_KEY = 'secret_string_for_sessions'
+
+    # Настройки JWT
+    JWT_SECRET_KEY = 'your_jwt_secret_key'  # Замените на свой секретный ключ
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)  # Продление жизни токена на неделю
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)  # Продление жизни Refresh Token на месяц
