@@ -1,23 +1,28 @@
-// src/components/header/HeaderApp.js
-import React from 'react';
-import {Layout } from 'antd'; // Импортируем Layout, а не Header отдельно
-import TabTitle from './components/TabTitle'; // Ваш компонент для отображения названия вкладки
+import React from "react";
+import {Layout} from "antd";
+import TabTitle from "./components/TabTitle"; // Компонент для названия вкладки
+import UserPanel from "./components/UserPanel"; // Компонент UserPanel
 
-const { Header } = Layout; // Деструктуризация Header из Layout
+const {Header} = Layout;
 
-const AppHeader = ({ collapsed, setCollapsed, selectedTab, tabNames }) => {
-  return (
-    <Header
-      style={{
-        padding: 0,
-        background: 'var(--headerBg)', // или используйте colorBgContainer из темы
-      }}
-    >
+const HeaderApp = ({collapsed, setCollapsed, selectedTab, tabNames, onThemeChange}) => {
+    return (
+        <Header
+            style={{
+                padding: '0 40px',
+                background: "var(--headerBg)", // Используем переменную темы
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+            }}
+        >
+            {/* Отображение текущей вкладки */}
+            <TabTitle selectedTab={selectedTab} tabNames={tabNames}/>
 
-      {/* Отображаем название вкладки с помощью компонента TabTitle */}
-      <TabTitle selectedTab={selectedTab} tabNames={tabNames} />
-    </Header>
-  );
+            {/* Панель пользователя */}
+            <UserPanel onThemeChange={onThemeChange}/>
+        </Header>
+    );
 };
 
-export default AppHeader;
+export default HeaderApp;

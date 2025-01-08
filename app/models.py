@@ -1,6 +1,6 @@
 import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Text, Float
 from sqlalchemy.orm import relationship
 from .extensions import db
 from sqlalchemy.schema import UniqueConstraint
@@ -119,3 +119,36 @@ class ProductPart(db.Model):
 
     def __repr__(self):
         return f"<ProductPart {self.product_id} -> {self.part_id}>"
+
+
+class Purchase(db.Model):
+    """
+    Таблица для учета закупок.
+    """
+    __tablename__ = "purchases"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)  # Название закупки
+    link = Column(String(500), nullable=True)  # Ссылка на товар
+    date = Column(db.DateTime, nullable=True)  # Дата закупки
+    cost = Column(Float, nullable=False)  # Стоимость
+    category = Column(String(50), nullable=False)  # Категория закупки
+    status = Column(String(50), nullable=True)  # Статус закупки
+    payment_status = Column(String(50), nullable=True)  # Статус оплаты
+    priority = Column(String(50), nullable=True)  # Приоритет
+    notes = Column(Text, nullable=True)  # Примечания
+    photo = Column(String(500), nullable=True)  # URL фотографии
+    created_at = Column(db.DateTime, default=datetime.datetime.utcnow)  # Используем datetime.utcnow
+    added_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # Кто добавил закупку
+
+    added_by_user = relationship("User", backref="purchases")  # Связь с таблицей пользователей
+
+
+class Budget(db.Model):
+    __tablename__ = 'budget'
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Budget(amount={self.amount}, created_at={self.created_at})>"

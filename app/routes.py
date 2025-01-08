@@ -4,7 +4,7 @@ import uuid
 from flask import request, jsonify, current_app, Blueprint
 from werkzeug.utils import secure_filename
 from . import db
-from .models import db, Order, Product, ProductPart, Part, User, Role
+from .models import db, Order, Product, ProductPart, Part, User, Role, Purchase
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
@@ -635,6 +635,141 @@ def delete_user(user_id):
     return jsonify({"message": "Пользователь удален"}), 200
 
 
+@auth_bp.route('/purchases', methods=['POST'])
+@jwt_required()
+def add_purchase():
+    """
+    Добавление новой закупки.
+    """
+    try:
+        identity = get_jwt_identity()
+        user_id, _ = identity.split("|")  # Получаем ID пользователя из токена
+
+        data = request.get_json()
+        current_app.logger.info(f"Полученные данные для закупки: {data}")
+
+        # Проверка обязательных полей
+        if not data.get('name') or not data.get('category'):
+            return jsonify({"error": "Название и категория обязательны"}), 400
+
+        new_purchase = Purchase(
+            name=data['name'],
+            link=data.get('link'),
+            date=datetime.datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get('date') else None,
+            cost=data.get('cost', 0),  # Используем значение по умолчанию
+            photo=data.get('photo', 'https://via.placeholder.com/150'),  # Заглушка по умолчанию
+            category=data['category'],
+            notes=data.get('notes', ''),  # Пустая строка по умолчанию
+            payment_status=data.get('payment_status', 'pending'),  # Используем стандартное значение
+            status=data.get('status', 'planned'),  # Используем стандартное значение
+            priority=data.get('priority', 'medium'),  # Используем стандартное значение
+            added_by=user_id  # ID пользователя, добавившего закупку
+        )
+
+        db.session.add(new_purchase)
+        db.session.commit()
+
+        return jsonify({"message": "Закупка успешно добавлена", "purchase_id": new_purchase.id}), 201
+    except Exception as e:
+        current_app.logger.error(f"Ошибка добавления закупки: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
+@auth_bp.route('/purchases', methods=['GET'])
+@jwt_required()
+def get_purchases():
+    """
+    Получение списка всех закупок.
+    """
+    try:
+        purchases = Purchase.query.all()  # Убираем фильтрацию по пользователю
+
+        result = [
+            {
+                "id": purchase.id,
+                "name": purchase.name,
+                "link": purchase.link,
+                "date": purchase.date.isoformat() if purchase.date else None,
+                "cost": purchase.cost,
+                "photo": purchase.photo,
+                "category": purchase.category,
+                "notes": purchase.notes,
+                "payment_status": purchase.payment_status,
+                "status": purchase.status,
+                "priority": purchase.priority,
+                "created_by": purchase.added_by,
+            }
+            for purchase in purchases
+        ]
+
+        return jsonify(result), 200
+    except Exception as e:
+        current_app.logger.error(f"Ошибка получения списка закупок: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
+@auth_bp.route('/purchases/<int:purchase_id>', methods=['PUT'])
+@jwt_required()
+def update_purchase(purchase_id):
+    """
+    Обновление закупки.
+    """
+    try:
+        identity = get_jwt_identity()
+        user_id, role = identity.split("|")  # Получаем ID пользователя и роль из токена
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+
+        # Проверка, что пользователь имеет право изменять эту закупку
+        if role != "Admin" and purchase.created_by != int(user_id):
+            return jsonify({"error": "Доступ запрещён"}), 403
+
+        data = request.get_json()
+
+        # Обновление только разрешённых полей
+        purchase.name = data.get('name', purchase.name)
+        purchase.link = data.get('link', purchase.link)
+        purchase.date = datetime.datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get(
+            'date') else purchase.date
+        purchase.cost = data.get('cost', purchase.cost)
+        purchase.photo = data.get('photo', purchase.photo)
+        purchase.category = data.get('category', purchase.category)
+        purchase.notes = data.get('notes', purchase.notes)
+        purchase.payment_status = data.get('payment_status', purchase.payment_status)
+        purchase.status = data.get('status', purchase.status)
+        purchase.priority = data.get('priority', purchase.priority)
+
+        db.session.commit()
+        return jsonify({"message": "Закупка успешно обновлена"}), 200
+    except Exception as e:
+        current_app.logger.error(f"Ошибка обновления закупки: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
+@auth_bp.route('/purchases/<int:purchase_id>', methods=['DELETE'])
+@jwt_required()
+def delete_purchase(purchase_id):
+    """
+    Удаление закупки.
+    """
+    try:
+        identity = get_jwt_identity()
+        user_id, role = identity.split("|")  # Получаем ID пользователя и роль из токена
+
+        purchase = Purchase.query.get_or_404(purchase_id)
+
+        # Проверка прав доступа
+        if role != "Admin" and purchase.created_by != int(user_id):
+            return jsonify({"error": "Доступ запрещён"}), 403
+
+        db.session.delete(purchase)
+        db.session.commit()
+        return jsonify({"message": "Закупка успешно удалена"}), 200
+    except Exception as e:
+        current_app.logger.error(f"Ошибка удаления закупки: {e}")
+        return jsonify({"error": "Ошибка сервера"}), 500
+
+
 # -------------------------
 # Регистрация маршрутов
 # -------------------------
@@ -659,3 +794,9 @@ def register_routes(app):
     # Загрузка изображений
     app.add_url_rule('/upload_image', view_func=upload_image, methods=['POST'])
     app.add_url_rule('/calculate_shortages', view_func=calculate_shortages, methods=['GET'])
+
+    # Закупки
+    app.add_url_rule('/purchases', view_func=add_purchase, methods=['POST'])
+    app.add_url_rule('/purchases', view_func=get_purchases, methods=['GET'])
+    app.add_url_rule('/purchases/<int:purchase_id>', view_func=update_purchase, methods=['PUT'])
+    app.add_url_rule('/purchases/<int:purchase_id>', view_func=delete_purchase, methods=['DELETE'])

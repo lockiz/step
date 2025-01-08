@@ -6,6 +6,8 @@ import OrdersPage from "./pages/orders/OrdersPage";
 import ProductsPage from "./pages/products/ProductsPage";
 import RegisterPage from "./pages/context/RegisterPage";
 import AdminPage from "./pages/admin/AdminPage";
+import AnalyticsPage from "./pages/analytics/AnalyticsPage";
+
 
 import {
     MenuFoldOutlined,
@@ -17,6 +19,7 @@ import {
 import HeaderApp from "./components/header/HeaderApp";
 import LogoMenuLeftSide from "./components/left_side_menu/components/logo";
 import {Button, Layout, Menu, theme, ConfigProvider, Spin} from "antd";
+import ExpensesPage from "./pages/expense/ExpensesPage";
 
 const {Sider, Content} = Layout;
 
@@ -54,25 +57,29 @@ const App = () => {
     const {user, loading} = useContext(AuthContext);
     const navigate = useNavigate();
     const [collapsed, setCollapsed] = useState(false);
-    const [selectedTab, setSelectedTab] = useState(null); // Устанавливаем `null` по умолчанию
+    const [selectedTab, setSelectedTab] = useState(null);
+    const [themeMode, setThemeMode] = useState("light"); // light or dark
+
+    const toggleTheme = () => {
+        setThemeMode((prev) => (prev === "light" ? "Volcano" : "light"));
+    };
 
     const {
         token: {colorBgContainer, borderRadiusLG},
     } = theme.useToken();
 
-    // Боковое меню
     const menuItems = user
         ? [
             {key: "1", icon: <UserOutlined/>, label: "Аналитика", path: "/"},
             {key: "2", icon: <VideoCameraOutlined/>, label: "Заказы", path: "/orders"},
             {key: "3", icon: <UploadOutlined/>, label: "Наличие", path: "/products"},
+            {key: "4", icon: <UploadOutlined/>, label: "Закупки", path: "/expenses"},
             ...(user.role === "Admin"
-                ? [{key: "6", icon: <UserOutlined/>, label: "Администрирование", path: "/admin"}]
+                ? [{key: "5", icon: <UserOutlined/>, label: "Администрирование", path: "/admin"}]
                 : []),
         ]
         : [];
 
-    // Устанавливаем `selectedTab` на основании текущего пути
     useEffect(() => {
         const currentPath = window.location.pathname;
         const activeItem = menuItems.find((item) => item.path === currentPath);
@@ -90,14 +97,7 @@ const App = () => {
     };
 
     return (
-        <ConfigProvider
-            theme={{
-                token: {
-                    siderBg: "#f7fafc",
-                    headerBg: "#f7fafc",
-                },
-            }}
-        >
+        <ConfigProvider theme={{algorithm: themeMode === "light" ? undefined : theme.darkAlgorithm}}>
             <Layout style={{minHeight: "100vh"}}>
                 {user && !["/login", "/register"].includes(window.location.pathname) && (
                     <Sider
@@ -129,7 +129,7 @@ const App = () => {
                         <Menu
                             style={{background: "transparent", border: "none"}}
                             mode="inline"
-                            selectedKeys={selectedTab ? [selectedTab] : []} // Показываем `selectedTab` только если он задан
+                            selectedKeys={selectedTab ? [selectedTab] : []}
                             onClick={handleMenuClick}
                             items={menuItems}
                         />
@@ -142,6 +142,7 @@ const App = () => {
                             collapsed={collapsed}
                             setCollapsed={setCollapsed}
                             selectedTab={selectedTab}
+                            onThemeChange={toggleTheme} // Передаем переключатель темы
                         />
                     )}
                     <Content
@@ -158,7 +159,7 @@ const App = () => {
                                 path="/"
                                 element={
                                     <ProtectedRoute roles={["Admin", "User"]}>
-                                        <div>Добро пожаловать в Аналитику</div>
+                                        <AnalyticsPage />
                                     </ProtectedRoute>
                                 }
                             />
@@ -178,6 +179,15 @@ const App = () => {
                                     </ProtectedRoute>
                                 }
                             />
+                            <Route
+                                path="/expenses"
+                                element={
+                                    <ProtectedRoute roles={["Admin", "User"]}>
+                                        <ExpensesPage/>
+                                    </ProtectedRoute>
+                                }
+                            />
+
                             <Route
                                 path="/admin"
                                 element={

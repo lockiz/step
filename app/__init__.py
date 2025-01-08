@@ -1,5 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
+
+from .budget_routes import budget_bp
 from .extensions import db, migrate, jwt
 
 
@@ -25,6 +27,7 @@ def create_app():
     with app.app_context():
         from .routes import register_routes, auth_bp
         app.register_blueprint(auth_bp, url_prefix="/auth")
+        app.register_blueprint(budget_bp, url_prefix='/api')
         register_routes(app)
         db.create_all()
 
